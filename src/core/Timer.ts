@@ -28,7 +28,6 @@ export class Timer {
       } else {
         // Page is visible again - adjust for time spent hidden
         if (this.hiddenAt !== null) {
-          this.totalHiddenTime += performance.now() - this.hiddenAt;
           this.hiddenAt = null;
           if (this.wasRunningBeforeHidden) {
             this.wasRunningBeforeHidden = false;
