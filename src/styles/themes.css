@@ -1,0 +1,79 @@
+:root {
+  /* Light theme (default) */
+  --bg-primary: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-grid: #FFFFFF;
+
+  --grid-line: #E2E8F0;
+  --grid-line-thick: #94A3B8;
+  --cage-border: #475569;
+
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  --text-clue: #334155;
+
+  --accent: #6366F1;
+  --accent-hover: #4F46E5;
+
+  --success: #22C55E;
+  --error: #EF4444;
+  --warning: #F59E0B;
+
+  --cell-selected: rgba(99, 102, 241, 0.2);
+  --cell-highlight: rgba(99, 102, 241, 0.1);
+  --cell-error: rgba(239, 68, 68, 0.2);
+
+  /* Cage colors - increased opacity for better visibility */
+  --cage-color-1: rgba(239, 246, 255, 0.7);
+  --cage-color-2: rgba(254, 243, 199, 0.7);
+  --cage-color-3: rgba(220, 252, 231, 0.7);
+  --cage-color-4: rgba(254, 226, 226, 0.7);
+  --cage-color-5: rgba(243, 232, 255, 0.7);
+  --cage-color-6: rgba(255, 237, 213, 0.7);
+  --cage-color-7: rgba(226, 254, 255, 0.7);
+  --cage-color-8: rgba(254, 249, 195, 0.7);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0F172A;
+  --bg-surface: #1E293B;
+  --bg-grid: #1E293B;
+
+  --grid-line: #334155;
+  --grid-line-thick: #64748B;
+  --cage-border: #94A3B8;
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+  --text-clue: #E2E8F0;
+
+  --accent: #818CF8;
+  --accent-hover: #A5B4FC;
+
+  --cell-selected: rgba(129, 140, 248, 0.3);
+  --cell-highlight: rgba(129, 140, 248, 0.15);
+  --cell-error: rgba(248, 113, 113, 0.3);
+
+  /* Dark mode cage colors - increased saturation for better visibility */
+  --cage-color-1: rgba(59, 130, 246, 0.4);
+  --cage-color-2: rgba(234, 179, 8, 0.4);
+  --cage-color-3: rgba(34, 197, 94, 0.4);
+  --cage-color-4: rgba(239, 68, 68, 0.4);
+  --cage-color-5: rgba(168, 85, 247, 0.4);
+  --cage-color-6: rgba(249, 115, 22, 0.4);
+  --cage-color-7: rgba(6, 182, 212, 0.4);
+  --cage-color-8: rgba(236, 72, 153, 0.4);
+}

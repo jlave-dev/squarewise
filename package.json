@@ -1,0 +1,15 @@
+{
+  "name": "squarewise",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A KenKen-style puzzle game with daily challenges",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0"
+  }
+}
