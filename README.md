@@ -49,6 +49,18 @@ npm run build
 npm run preview
 ```
 
+### Run Unit Tests
+
+```bash
+npm test
+```
+
+### Watch Unit Tests
+
+```bash
+npm run test:watch
+```
+
 ## Controls
 
 - `Click`/`Tap`: select a cell
@@ -73,5 +85,5 @@ npm run preview
 
 ## Notes
 
-- This repository currently has no automated test suite configured.
+- Unit tests use Vitest and are located in `tests/*.test.ts`.
 - Build verification is available via `npm run build`.
