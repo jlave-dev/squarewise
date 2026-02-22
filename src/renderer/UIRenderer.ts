@@ -1,3 +1,13 @@
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import {
+  faGear,
+  faLightbulb,
+  faPause,
+  faRotateLeft,
+  faRotateRight,
+} from '@fortawesome/free-solid-svg-icons';
+import { createIconElement } from '../ui/icons';
+
 /**
  * UI Renderer for HUD, buttons, and overlays
  */
@@ -23,10 +33,11 @@ export class UIRenderer {
     // Don't override position: fixed from CSS class
     container.style.cssText = `
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
-      padding: 16px;
-      max-width: 500px;
+      gap: 28px;
+      padding: 16px 20px;
+      width: min(92vw, 560px);
     `;
     return container;
   }
@@ -50,30 +61,31 @@ export class UIRenderer {
     container.style.cssText = `
       display: flex;
       gap: 8px;
+      margin-left: auto;
     `;
 
     // Undo button
-    container.appendChild(this.createButton('↶', 'Undo (Ctrl+Z)', () => this.onUndo?.()));
+    container.appendChild(this.createButton(faRotateLeft, 'Undo (Ctrl+Z)', () => this.onUndo?.()));
 
     // Redo button
-    container.appendChild(this.createButton('↷', 'Redo (Ctrl+Y)', () => this.onRedo?.()));
+    container.appendChild(this.createButton(faRotateRight, 'Redo (Ctrl+Y)', () => this.onRedo?.()));
 
     // Hint button
-    container.appendChild(this.createButton('💡', 'Hint (H)', () => this.onHint?.()));
+    container.appendChild(this.createButton(faLightbulb, 'Hint (H)', () => this.onHint?.()));
 
     // Pause button
-    container.appendChild(this.createButton('⏸', 'Pause (P)', () => this.onPause?.()));
+    container.appendChild(this.createButton(faPause, 'Pause (P)', () => this.onPause?.()));
 
     // Settings button
-    container.appendChild(this.createButton('⚙️', 'Settings', () => this.onSettings?.()));
+    container.appendChild(this.createButton(faGear, 'Settings', () => this.onSettings?.()));
 
     return container;
   }
 
-  private createButton(icon: string, title: string, onClick?: () => void): HTMLButtonElement {
+  private createButton(iconDef: IconDefinition, title: string, onClick?: () => void): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'ui-btn';
-    btn.textContent = icon;
+    btn.appendChild(createIconElement(iconDef));
     btn.title = title;
     btn.style.cssText = `
       width: 48px;
@@ -82,10 +94,12 @@ export class UIRenderer {
       border-radius: var(--radius-md);
       background: var(--bg-surface);
       color: var(--text-primary);
-      font-size: 1.4rem;
       cursor: pointer;
       transition: all 0.15s ease;
       box-shadow: var(--shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     `;
 
     btn.addEventListener('mouseenter', () => {

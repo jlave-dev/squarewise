@@ -50,13 +50,48 @@ body {
   z-index: 100;
 }
 
+.sw-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.sw-icon svg {
+  width: 1em;
+  height: 1em;
+  display: block;
+}
+
 /* Number pad positioning */
-.number-pad {
+.number-pad-shell {
   position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.number-pad-toggle {
+  border: 1px solid var(--grid-line);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.keyboard-hints {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--grid-line);
+  border-radius: var(--radius-md);
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 /* Modal styles */
@@ -139,11 +174,12 @@ body {
 /* Number pad styles */
 .number-pad {
   display: grid;
-  gap: 10px;
-  padding: 16px;
+  gap: 12px;
+  padding: 14px;
   background: var(--bg-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
+  width: min(92vw, 360px);
 }
 
 .number-btn {
@@ -166,6 +202,43 @@ body {
 
 .number-btn:active {
   transform: scale(0.95);
+}
+
+.number-pad-actions {
+  width: min(92vw, 360px);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.number-pad-action-btn {
+  height: 46px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.number-pad-action-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.sw-icon-label {
+  line-height: 1;
 }
 
 /* Settings panel */

@@ -1,4 +1,13 @@
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import {
+  faBorderAll,
+  faClock,
+  faLightbulb,
+  faSignal,
+  faTrophy,
+} from '@fortawesome/free-solid-svg-icons';
 import { Modal } from './Modal';
+import { createIconElement } from './icons';
 
 interface WinStats {
   time: number;
@@ -28,7 +37,7 @@ export class WinScreen {
   show(stats: WinStats): void {
     this.stats = stats;
     this.modal.clear();
-    this.modal.setTitle('🎉 Puzzle Complete!');
+    this.modal.setTitle('Puzzle Complete');
 
     const content = this.createContent(stats);
     this.modal.setContent(content);
@@ -64,10 +73,10 @@ export class WinScreen {
       gap: 12px;
     `;
 
-    statsGrid.appendChild(this.createStatItem('⏱️ Time', this.formatTime(stats.time)));
-    statsGrid.appendChild(this.createStatItem('💡 Hints', stats.hintsUsed.toString()));
-    statsGrid.appendChild(this.createStatItem('📊 Difficulty', stats.difficulty));
-    statsGrid.appendChild(this.createStatItem('📐 Grid', `${stats.gridSize}×${stats.gridSize}`));
+    statsGrid.appendChild(this.createStatItem('Time', this.formatTime(stats.time), faClock));
+    statsGrid.appendChild(this.createStatItem('Hints', stats.hintsUsed.toString(), faLightbulb));
+    statsGrid.appendChild(this.createStatItem('Difficulty', stats.difficulty, faSignal));
+    statsGrid.appendChild(this.createStatItem('Grid', `${stats.gridSize}×${stats.gridSize}`, faBorderAll));
 
     if (stats.isNewBest) {
       const bestBadge = document.createElement('div');
@@ -80,7 +89,12 @@ export class WinScreen {
         text-align: center;
         font-weight: bold;
       `;
-      bestBadge.textContent = '🏆 New Best Time!';
+      bestBadge.appendChild(createIconElement(faTrophy));
+      bestBadge.appendChild(Object.assign(document.createElement('span'), { textContent: 'New Best Time!' }));
+      bestBadge.style.display = 'inline-flex';
+      bestBadge.style.alignItems = 'center';
+      bestBadge.style.justifyContent = 'center';
+      bestBadge.style.gap = '8px';
       statsGrid.appendChild(bestBadge);
     }
 
@@ -102,7 +116,7 @@ export class WinScreen {
     return container;
   }
 
-  private createStatItem(label: string, value: string): HTMLElement {
+  private createStatItem(label: string, value: string, iconDef: IconDefinition): HTMLElement {
     const item = document.createElement('div');
     item.style.cssText = `
       padding: 12px;
@@ -112,8 +126,16 @@ export class WinScreen {
     `;
 
     const labelEl = document.createElement('div');
-    labelEl.style.cssText = `font-size: 0.8rem; color: var(--text-muted);`;
-    labelEl.textContent = label;
+    labelEl.style.cssText = `
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    `;
+    labelEl.appendChild(createIconElement(iconDef));
+    labelEl.appendChild(document.createTextNode(label));
 
     const valueEl = document.createElement('div');
     valueEl.style.cssText = `font-size: 1.2rem; font-weight: bold; color: var(--text-primary); margin-top: 4px;`;
@@ -132,7 +154,7 @@ export class WinScreen {
   }
 
   private generateShareText(stats: WinStats): string {
-    return `I solved a ${stats.gridSize}×${stats.gridSize} ${stats.difficulty} puzzle in ${this.formatTime(stats.time)} on SquareWise! 🧩`;
+    return `I solved a ${stats.gridSize}×${stats.gridSize} ${stats.difficulty} puzzle in ${this.formatTime(stats.time)} on SquareWise.`;
   }
 
   private triggerConfetti(): void {

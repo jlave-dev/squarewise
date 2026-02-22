@@ -13,6 +13,10 @@ import { NumberPad } from './ui/NumberPad';
 import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
 import { dailyChallenge } from './core/DailyChallenge';
+import {
+  getInputCapabilities,
+  shouldShowOnScreenKeypadByDefault,
+} from './utils/inputCapabilities';
 import type { Difficulty } from './types/puzzle';
 import type { UserSettings } from './types/game';
 
@@ -24,6 +28,7 @@ class SquareWiseApp {
   private winScreen: WinScreen;
   private uiRenderer: UIRenderer;
   private numberPad: NumberPad;
+  private numberPadDesktopLikeMode: boolean | null = null;
   private themeRefreshFrameId: number | null = null;
 
   constructor() {
@@ -73,6 +78,7 @@ class SquareWiseApp {
     const appContainer = document.getElementById('app') || document.body;
     appContainer.appendChild(this.uiRenderer.getElement());
     this.numberPad.mount(appContainer);
+    this.applyNumberPadVisibilityMode();
     console.log('[SquareWise] UI elements mounted');
 
     // Initialize game
@@ -197,6 +203,21 @@ class SquareWiseApp {
    */
   private handleResize(): void {
     this.centerCanvas();
+    this.applyNumberPadVisibilityMode();
+  }
+
+  private applyNumberPadVisibilityMode(): void {
+    const capabilities = getInputCapabilities();
+    const showByDefault = shouldShowOnScreenKeypadByDefault(capabilities);
+    const desktopLike = !showByDefault;
+
+    if (this.numberPadDesktopLikeMode === desktopLike) {
+      return;
+    }
+
+    this.numberPadDesktopLikeMode = desktopLike;
+    this.numberPad.setCollapsible(desktopLike);
+    this.numberPad.setVisible(showByDefault);
   }
 
   /**

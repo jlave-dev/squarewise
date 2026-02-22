@@ -1,4 +1,5 @@
 import type { Cell, NotesGrid, Puzzle } from '../types/puzzle';
+import { getNoteAnchor } from './noteLayout';
 
 interface RendererConfig {
   cellSize: number;
@@ -143,10 +144,11 @@ export class CanvasRenderer {
     this.drawErrorHighlights();
     this.drawGrid();
     this.drawCageBorders();
+    this.drawSelectedCellFill();
     this.drawNumbers();
     this.drawNotes();
     this.drawClues();
-    this.drawSelectedCell();
+    this.drawSelectedCellOutline();
   }
 
   /**
@@ -193,12 +195,14 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw light error highlights for invalid cells
+   * Draw error highlights for invalid cells
    */
   private drawErrorHighlights(): void {
     if (!this.puzzle || this.errorCells.size === 0) return;
 
-    this.ctx.fillStyle = 'rgba(239, 68, 68, 0.14)';
+    const errorCellColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cell-error').trim() || 'rgba(239, 68, 68, 0.24)';
+    this.ctx.fillStyle = errorCellColor;
     for (const key of this.errorCells) {
       const [rowValue, colValue] = key.split(',');
       const row = Number.parseInt(rowValue, 10);
@@ -211,19 +215,26 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw the selected cell highlight
+   * Draw selected cell fill under numbers/clues.
    */
-  private drawSelectedCell(): void {
+  private drawSelectedCellFill(): void {
     if (!this.selectedCell || !this.puzzle) return;
 
     const { x, y } = this.getCellPosition(this.selectedCell.row, this.selectedCell.col);
 
-    // Draw highlight background (subtle tint)
-    this.ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+    this.ctx.fillStyle = 'rgba(59, 130, 246, 0.16)';
     this.ctx.fillRect(x, y, this.config.cellSize, this.config.cellSize);
+  }
 
-    // Draw red border (thinner so it doesn't block numbers)
-    this.ctx.strokeStyle = '#EF4444';
+  /**
+   * Draw selected cell border over numbers/clues.
+   */
+  private drawSelectedCellOutline(): void {
+    if (!this.selectedCell || !this.puzzle) return;
+
+    const { x, y } = this.getCellPosition(this.selectedCell.row, this.selectedCell.col);
+
+    this.ctx.strokeStyle = '#3B82F6';
     this.ctx.lineWidth = 3;
     this.ctx.strokeRect(x + 1.5, y + 1.5, this.config.cellSize - 3, this.config.cellSize - 3);
   }
@@ -354,10 +365,11 @@ export class CanvasRenderer {
   private drawNumbers(): void {
     if (!this.puzzle || !this.grid) return;
 
-    const textColor = getComputedStyle(document.documentElement)
+    const defaultTextColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--text-primary').trim() || '#1E293B';
+    const errorTextColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--error').trim() || '#EF4444';
 
-    this.ctx.fillStyle = textColor;
     this.ctx.font = this.getCanvasFont(this.config.fontSize);
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -366,6 +378,8 @@ export class CanvasRenderer {
       for (let col = 0; col < this.puzzle.size; col++) {
         const value = this.grid[row][col];
         if (value > 0) {
+          const key = `${row},${col}`;
+          this.ctx.fillStyle = this.errorCells.has(key) ? errorTextColor : defaultTextColor;
           const { x, y } = this.getCellPosition(row, col);
           const centerX = x + this.config.cellSize / 2;
           const centerY = y + this.config.cellSize / 2;
@@ -398,42 +412,16 @@ export class CanvasRenderer {
         if (cellNotes.length === 0) continue;
 
         const { x, y } = this.getCellPosition(row, col);
-        const step = this.config.cellSize / 3;
-        const isClueCell = this.isCageTopLeftCell(row, col);
 
         for (const note of cellNotes) {
-          const index = note - 1;
-          if (index < 0 || index > 8) continue;
-          const noteCol = index % 3;
-          const noteRow = Math.floor(index / 3);
-          // In the clue cell, skip the top-left note slot to avoid overlapping the clue.
-          if (isClueCell && noteRow === 0 && noteCol === 0) continue;
-          const noteX = x + step * (noteCol + 0.5);
-          const noteY = y + step * (noteRow + 0.5);
+          const anchor = getNoteAnchor(note);
+          if (!anchor) continue;
+          const noteX = x + this.config.cellSize * anchor.xFactor;
+          const noteY = y + this.config.cellSize * anchor.yFactor;
           this.ctx.fillText(String(note), noteX, noteY);
         }
       }
     }
-  }
-
-  /**
-   * Whether a cell is the top-left cell of its cage (where clue text is drawn)
-   */
-  private isCageTopLeftCell(row: number, col: number): boolean {
-    if (!this.puzzle) return false;
-
-    const cage = this.puzzle.cages.find((candidate) =>
-      candidate.cells.some((cell) => cell.row === row && cell.col === col)
-    );
-    if (!cage) return false;
-
-    const topLeft = cage.cells.reduce((min, cell) => {
-      if (cell.row < min.row) return cell;
-      if (cell.row === min.row && cell.col < min.col) return cell;
-      return min;
-    });
-
-    return topLeft.row === row && topLeft.col === col;
   }
 
   /**

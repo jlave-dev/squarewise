@@ -1,3 +1,10 @@
+import {
+  faDeleteLeft,
+  faPen,
+  faPenToSquare,
+} from '@fortawesome/free-solid-svg-icons';
+import { createIconElement, setLabeledIconContent } from './icons';
+
 type NumberCallback = (value: number) => void;
 type ActionCallback = () => void;
 
@@ -12,23 +19,43 @@ interface NumberPadOptions {
  * On-screen number pad for touch input
  */
 export class NumberPad {
+  private root: HTMLDivElement;
   private container: HTMLDivElement;
+  private actionsContainer: HTMLDivElement;
+  private toggleButton: HTMLButtonElement;
+  private keyboardHints: HTMLDivElement;
   private options: NumberPadOptions;
-  private gridSize: number = 6;
-  private notesMode: boolean = false;
+  private gridSize = 6;
+  private notesMode = false;
+  private visible = true;
+  private collapsible = false;
   private buttons: HTMLButtonElement[] = [];
   private notesToggle: HTMLButtonElement | null = null;
 
   constructor(options: NumberPadOptions) {
     this.options = options;
+    this.root = this.createRoot();
     this.container = this.createContainer();
+    this.actionsContainer = this.createActionsContainer();
+    this.toggleButton = this.createToggleButton();
+    this.keyboardHints = this.createKeyboardHints();
+    this.root.appendChild(this.toggleButton);
+    this.root.appendChild(this.keyboardHints);
+    this.root.appendChild(this.container);
+    this.root.appendChild(this.actionsContainer);
     this.render();
+    this.updateVisibility();
+  }
+
+  private createRoot(): HTMLDivElement {
+    const root = document.createElement('div');
+    root.className = 'number-pad-shell';
+    return root;
   }
 
   private createContainer(): HTMLDivElement {
     const container = document.createElement('div');
     container.className = 'number-pad';
-    // Don't override position: fixed from CSS class
     container.style.cssText = `
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
@@ -40,6 +67,27 @@ export class NumberPad {
       max-width: 350px;
     `;
     return container;
+  }
+
+  private createActionsContainer(): HTMLDivElement {
+    const container = document.createElement('div');
+    container.className = 'number-pad-actions';
+    return container;
+  }
+
+  private createToggleButton(): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.className = 'number-pad-toggle';
+    btn.textContent = 'Show keypad';
+    btn.addEventListener('click', () => this.toggleVisibility());
+    return btn;
+  }
+
+  private createKeyboardHints(): HTMLDivElement {
+    const hints = document.createElement('div');
+    hints.className = 'keyboard-hints';
+    hints.textContent = 'Keyboard: 1-9 input, Backspace clear, N notes, H hint, P pause';
+    return hints;
   }
 
   /**
@@ -67,9 +115,49 @@ export class NumberPad {
     this.options.onToggleNotes?.();
   }
 
+  /**
+   * Enable/disable collapsible mode for desktop-like environments.
+   */
+  setCollapsible(enabled: boolean): void {
+    this.collapsible = enabled;
+    if (!enabled) {
+      this.visible = true;
+    }
+    this.updateVisibility();
+  }
+
+  /**
+   * Set keypad visibility state.
+   */
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+    this.updateVisibility();
+  }
+
+  /**
+   * Toggle keypad visibility state.
+   */
+  toggleVisibility(): void {
+    this.visible = !this.visible;
+    this.updateVisibility();
+  }
+
+  private updateVisibility(): void {
+    this.container.style.display = this.visible ? 'grid' : 'none';
+    this.actionsContainer.style.display = this.visible ? 'grid' : 'none';
+    this.toggleButton.style.display = this.collapsible ? 'inline-flex' : 'none';
+    this.keyboardHints.style.display = this.collapsible ? 'block' : 'none';
+    this.toggleButton.textContent = this.visible ? 'Hide keypad' : 'Show keypad';
+    this.root.classList.toggle('collapsed', !this.visible);
+  }
+
   private updateNotesButton(): void {
     if (this.notesToggle) {
-      this.notesToggle.textContent = this.notesMode ? '📝 Notes' : '✏️ Notes';
+      setLabeledIconContent(
+        this.notesToggle,
+        this.notesMode ? faPenToSquare : faPen,
+        'Notes'
+      );
       this.notesToggle.style.background = this.notesMode
         ? 'var(--accent)'
         : 'var(--bg-primary)';
@@ -81,36 +169,26 @@ export class NumberPad {
 
   private render(): void {
     this.container.innerHTML = '';
+    this.actionsContainer.innerHTML = '';
     this.buttons = [];
 
-    // Number buttons
     for (let i = 1; i <= this.gridSize; i++) {
       const btn = this.createNumberButton(i);
       this.container.appendChild(btn);
       this.buttons.push(btn);
     }
 
-    // Notes toggle button
     this.notesToggle = document.createElement('button');
-    this.notesToggle.className = 'number-btn';
-    this.notesToggle.textContent = '✏️ Notes';
-    this.notesToggle.style.cssText = `
-      grid-column: span 2;
-      font-size: 0.9rem;
-    `;
+    this.notesToggle.className = 'number-pad-action-btn';
     this.notesToggle.addEventListener('click', () => this.toggleNotes());
-    this.container.appendChild(this.notesToggle);
+    this.actionsContainer.appendChild(this.notesToggle);
 
-    // Clear button
     const clearBtn = document.createElement('button');
-    clearBtn.className = 'number-btn';
-    clearBtn.textContent = '⌫';
-    clearBtn.style.cssText = `
-      grid-column: span 2;
-      font-size: 1.2rem;
-    `;
+    clearBtn.className = 'number-pad-action-btn';
+    clearBtn.appendChild(createIconElement(faDeleteLeft));
+    clearBtn.appendChild(Object.assign(document.createElement('span'), { textContent: 'Clear' }));
     clearBtn.addEventListener('click', () => this.options.onClear?.());
-    this.container.appendChild(clearBtn);
+    this.actionsContainer.appendChild(clearBtn);
 
     this.updateNotesButton();
   }
@@ -168,35 +246,35 @@ export class NumberPad {
    * Get the container element
    */
   getElement(): HTMLDivElement {
-    return this.container;
+    return this.root;
   }
 
   /**
    * Mount to a parent element
    */
   mount(parent: HTMLElement): void {
-    parent.appendChild(this.container);
+    parent.appendChild(this.root);
   }
 
   /**
    * Unmount from DOM
    */
   unmount(): void {
-    this.container.remove();
+    this.root.remove();
   }
 
   /**
    * Show the number pad
    */
   show(): void {
-    this.container.style.display = 'grid';
+    this.setVisible(true);
   }
 
   /**
    * Hide the number pad
    */
   hide(): void {
-    this.container.style.display = 'none';
+    this.setVisible(false);
   }
 
   /**
