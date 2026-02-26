@@ -262,7 +262,7 @@ export class StateManager {
     grid: number[][];
     notes: Set<number>[][];
     selectedCell: Cell | null;
-    status: 'playing' | 'paused';
+    status: 'playing' | 'paused' | 'won';
     timer: number;
     hintsUsed: number;
   }): void {

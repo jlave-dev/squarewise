@@ -73,7 +73,7 @@ class StatsStore {
   /**
    * Record a completed puzzle
    */
-  async recordCompletion(difficulty: Difficulty, time: number, usedHints: boolean): Promise<void> {
+  async recordCompletion(difficulty: Difficulty, time: number, _usedHints: boolean): Promise<void> {
     // Increment completion count
     this.stats.puzzlesCompleted[difficulty]++;
 

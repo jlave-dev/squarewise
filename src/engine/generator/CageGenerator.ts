@@ -22,6 +22,7 @@ export function generateCages(
   config: Partial<CageConfig> = {}
 ): Cage[] {
   const { minSize, maxSize, allowSingleCell } = { ...DEFAULT_CONFIG, ...config };
+  const effectiveMinSize = allowSingleCell ? minSize : Math.max(2, minSize);
   const cages: Cage[] = [];
   const visited = new Set<string>();
   let cageId = 0;
@@ -33,7 +34,7 @@ export function generateCages(
       if (visited.has(key)) continue;
 
       // Grow a new cage from this cell
-      const cells = growCage(row, col, size, visited, rng, minSize, maxSize);
+      const cells = growCage(row, col, size, visited, rng, effectiveMinSize, maxSize);
 
       // Create the cage (clue will be added later)
       const cage: Cage = {

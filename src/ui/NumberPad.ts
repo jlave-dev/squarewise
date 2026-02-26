@@ -15,6 +15,10 @@ interface NumberPadOptions {
   notesMode?: boolean;
 }
 
+export function shouldShowKeyboardHints(collapsible: boolean, visible: boolean): boolean {
+  return collapsible && !visible;
+}
+
 /**
  * On-screen number pad for touch input
  */
@@ -146,7 +150,7 @@ export class NumberPad {
     this.container.style.display = this.visible ? 'grid' : 'none';
     this.actionsContainer.style.display = this.visible ? 'grid' : 'none';
     this.toggleButton.style.display = this.collapsible ? 'inline-flex' : 'none';
-    this.keyboardHints.style.display = this.collapsible ? 'block' : 'none';
+    this.keyboardHints.style.display = shouldShowKeyboardHints(this.collapsible, this.visible) ? 'block' : 'none';
     this.toggleButton.textContent = this.visible ? 'Hide keypad' : 'Show keypad';
     this.root.classList.toggle('collapsed', !this.visible);
   }

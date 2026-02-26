@@ -1,4 +1,4 @@
-import type { Cell, Cage, Clue, Operation, Puzzle } from '../../types/puzzle';
+import type { Cell, Cage, Clue, Operation } from '../../types/puzzle';
 import { SeededRNG } from '../../utils/rng';
 
 /**
@@ -101,7 +101,7 @@ export function assignClues(
   cages: Cage[],
   solution: number[][],
   operations: Operation[],
-  rng: SeededRNG
+  _rng: SeededRNG
 ): void {
   for (const cage of cages) {
     cage.clue = calculateClue(cage.cells, solution, operations);

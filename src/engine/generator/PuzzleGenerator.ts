@@ -1,10 +1,10 @@
-import type { Puzzle, Cage, Difficulty, PuzzleConfig } from '../../types/puzzle';
+import type { Puzzle, Difficulty, PuzzleConfig } from '../../types/puzzle';
 import { SeededRNG, createRNG } from '../../utils/rng';
 import { generateLatinSquare } from './LatinSquare';
 import { generateCages } from './CageGenerator';
 import { assignClues } from './ClueCalculator';
 import { hasUniqueSolution } from '../solver/BacktrackSolver';
-import { getDifficultyPreset, DifficultyPreset } from '../difficulty/presets';
+import { getDifficultyPreset } from '../difficulty/presets';
 
 /**
  * Generate a complete puzzle with the given configuration

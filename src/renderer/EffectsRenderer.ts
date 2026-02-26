@@ -1,4 +1,4 @@
-import { AnimationManager, easings, lerp } from '../utils/animations';
+import { AnimationManager, easings } from '../utils/animations';
 
 interface Particle {
   x: number;
@@ -28,13 +28,13 @@ export class EffectsRenderer {
   /**
    * Animate cell selection
    */
-  animateCellSelect(x: number, y: number, size: number, onComplete?: () => void): void {
+  animateCellSelect(_x: number, _y: number, _size: number, onComplete?: () => void): void {
     this.animationManager.animate(
       0,
       1,
       200,
       easings.easeOutCubic,
-      (progress) => {
+      (_progress) => {
         // This would be integrated with the main renderer
       },
       onComplete
@@ -44,14 +44,14 @@ export class EffectsRenderer {
   /**
    * Animate number entry
    */
-  animateNumberEntry(x: number, y: number, size: number, value: number): void {
+  animateNumberEntry(_x: number, _y: number, _size: number, _value: number): void {
     // Scale animation for number appearance
     this.animationManager.animate(
       0.5,
       1,
       150,
       easings.easeOutBack,
-      (scale) => {
+      (_scale) => {
         // Scale would be applied during render
       }
     );

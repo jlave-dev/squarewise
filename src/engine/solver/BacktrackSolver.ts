@@ -1,5 +1,5 @@
 import type { Puzzle, Cage, Cell } from '../../types/puzzle';
-import { createEmptyGrid, copyGrid } from '../generator/LatinSquare';
+import { createEmptyGrid } from '../generator/LatinSquare';
 
 /**
  * Check if a value is valid in a cell position

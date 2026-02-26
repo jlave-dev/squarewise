@@ -1,5 +1,5 @@
 import type { Puzzle, Cell, Difficulty, PuzzleConfig } from '../types/puzzle';
-import type { UserSettings } from '../types/game';
+import type { UserSettings, GameStatus } from '../types/game';
 import { CanvasRenderer } from '../renderer/CanvasRenderer';
 import { InputHandler } from './InputHandler';
 import { StateManager } from './StateManager';
@@ -21,8 +21,15 @@ export interface GameCallbacks {
   onTimerUpdate?: (elapsed: number) => void;
 }
 
+export interface DebugSessionState {
+  grid: number[][];
+  selectedCell: Cell | null;
+  status: GameStatus;
+  timer: number;
+  hintsUsed: number;
+}
+
 export class Game {
-  private canvas: HTMLCanvasElement;
   private renderer: CanvasRenderer;
   private inputHandler: InputHandler;
   private stateManager: StateManager;
@@ -40,7 +47,6 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement, callbacks: GameCallbacks = {}) {
     this.callbacks = callbacks;
-    this.canvas = canvas;
     this.renderer = new CanvasRenderer(canvas);
     this.timer = new Timer((elapsed) => this.onTimerTick(elapsed));
     this.undoStack = new UndoStack();
@@ -382,6 +388,44 @@ export class Game {
   getGridSize(): number {
     const state = this.stateManager.getState();
     return state.puzzle.size;
+  }
+
+  /**
+   * Current puzzle object for debug scenario construction
+   */
+  getPuzzle(): Puzzle {
+    return this.stateManager.getState().puzzle;
+  }
+
+  /**
+   * Test/dev-only hook: force a full in-memory session state
+   */
+  applyDebugSession(session: DebugSessionState): void {
+    const current = this.stateManager.getState();
+    const status = session.status === 'idle' ? 'playing' : session.status;
+    this.stateManager.restoreSession({
+      grid: session.grid,
+      notes: current.notes,
+      selectedCell: session.selectedCell,
+      status,
+      timer: session.timer,
+      hintsUsed: session.hintsUsed,
+    });
+
+    this.timer.setElapsed(session.timer);
+    if (status === 'playing') {
+      this.timer.start();
+    } else {
+      this.timer.pause();
+    }
+
+    if (status === 'won') {
+      this.stateManager.clearErrors();
+    } else {
+      this.updateValidationErrors();
+    }
+
+    this.render();
   }
 
   /**

@@ -8,8 +8,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { Modal } from './Modal';
 import { createIconElement } from './icons';
+import type { ShareLink } from '../app/share/ShareService';
 
-interface WinStats {
+export interface WinStats {
   time: number;
   hintsUsed: number;
   difficulty: string;
@@ -24,7 +25,9 @@ export class WinScreen {
   private modal: Modal;
   private stats: WinStats | null = null;
   private onNewGame?: () => void;
-  private onShare?: () => void;
+  private onShare?: (stats: WinStats) => void | Promise<void>;
+  private shareActionsEl: HTMLDivElement | null = null;
+  private shareStatusEl: HTMLDivElement | null = null;
 
   constructor() {
     this.modal = new Modal();
@@ -48,7 +51,9 @@ export class WinScreen {
     }, 'primary');
 
     this.modal.addButton('Share', () => {
-      this.onShare?.();
+      if (this.stats) {
+        void this.onShare?.(this.stats);
+      }
     }, 'secondary');
 
     this.modal.open();
@@ -113,6 +118,24 @@ export class WinScreen {
     sharePreview.textContent = this.generateShareText(stats);
     container.appendChild(sharePreview);
 
+    this.shareStatusEl = document.createElement('div');
+    this.shareStatusEl.style.cssText = `
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      min-height: 1.3em;
+    `;
+    container.appendChild(this.shareStatusEl);
+
+    this.shareActionsEl = document.createElement('div');
+    this.shareActionsEl.style.cssText = `
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+    `;
+    container.appendChild(this.shareActionsEl);
+
+    this.setShareStatus('');
+
     return container;
   }
 
@@ -155,6 +178,59 @@ export class WinScreen {
 
   private generateShareText(stats: WinStats): string {
     return `I solved a ${stats.gridSize}×${stats.gridSize} ${stats.difficulty} puzzle in ${this.formatTime(stats.time)} on SquareWise.`;
+  }
+
+  showShareFallback(links: ShareLink[], copyText: string): void {
+    if (!this.shareActionsEl) {
+      return;
+    }
+
+    this.shareActionsEl.innerHTML = '';
+    this.shareActionsEl.style.display = 'flex';
+    this.shareActionsEl.style.padding = '10px';
+    this.shareActionsEl.style.borderRadius = 'var(--radius-md)';
+    this.shareActionsEl.style.background = 'var(--bg-primary)';
+
+    for (const link of links) {
+      const anchor = document.createElement('a');
+      anchor.href = link.url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.className = 'btn btn-secondary';
+      anchor.textContent = link.label;
+      anchor.ariaLabel = link.label;
+      this.shareActionsEl.appendChild(anchor);
+    }
+
+    const copyButton = document.createElement('button');
+    copyButton.className = 'btn btn-secondary';
+    copyButton.textContent = 'Copy Link';
+    copyButton.addEventListener('click', () => {
+      if (!navigator.clipboard?.writeText) {
+        this.setShareStatus('Clipboard is unavailable. Use social links above.');
+        return;
+      }
+
+      void navigator.clipboard.writeText(copyText)
+        .then(() => this.setShareStatus('Copied to clipboard.'))
+        .catch(() => this.setShareStatus('Could not copy. You can still use social links above.'));
+    });
+    this.shareActionsEl.appendChild(copyButton);
+  }
+
+  hideShareFallback(): void {
+    if (!this.shareActionsEl) {
+      return;
+    }
+    this.shareActionsEl.innerHTML = '';
+    this.shareActionsEl.style.display = 'none';
+  }
+
+  setShareStatus(message: string): void {
+    if (!this.shareStatusEl) {
+      return;
+    }
+    this.shareStatusEl.textContent = message;
   }
 
   private triggerConfetti(): void {
@@ -205,7 +281,7 @@ export class WinScreen {
   /**
    * Set callback for share
    */
-  setOnShare(callback: () => void): void {
+  setOnShare(callback: (stats: WinStats) => void | Promise<void>): void {
     this.onShare = callback;
   }
 
@@ -213,6 +289,8 @@ export class WinScreen {
    * Hide the win screen
    */
   hide(): void {
-    this.modal.close();
+    if (this.modal.isOpen()) {
+      this.modal.close();
+    }
   }
 }

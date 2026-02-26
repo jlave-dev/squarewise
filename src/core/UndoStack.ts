@@ -1,4 +1,4 @@
-import type { GameAction, GameState } from '../types/game';
+import type { GameAction } from '../types/game';
 
 interface UndoState {
   grid: number[][];

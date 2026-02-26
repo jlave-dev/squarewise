@@ -15,8 +15,6 @@ export class UIRenderer {
   private container: HTMLDivElement;
   private timerDisplay: HTMLDivElement;
   private controlsContainer: HTMLDivElement;
-  private hintCount: number = 0;
-  private maxHints: number = 3;
 
   constructor() {
     this.container = this.createContainer();
@@ -136,9 +134,8 @@ export class UIRenderer {
   /**
    * Update hint count display
    */
-  updateHintCount(used: number, max: number): void {
-    this.hintCount = used;
-    this.maxHints = max;
+  updateHintCount(_used: number, _max: number): void {
+    // Reserved for future hint UI.
   }
 
   /**
