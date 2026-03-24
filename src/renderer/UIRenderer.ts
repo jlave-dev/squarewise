@@ -1,8 +1,10 @@
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
+  faChartSimple,
   faGear,
   faLightbulb,
   faPause,
+  faPlus,
   faRotateLeft,
   faRotateRight,
 } from '@fortawesome/free-solid-svg-icons';
@@ -74,8 +76,14 @@ export class UIRenderer {
     // Pause button
     container.appendChild(this.createButton(faPause, 'Pause (P)', () => this.onPause?.()));
 
+    // Stats button
+    container.appendChild(this.createButton(faChartSimple, 'Statistics', () => this.onStats?.()));
+
     // Settings button
     container.appendChild(this.createButton(faGear, 'Settings', () => this.onSettings?.()));
+
+    // New Game button
+    container.appendChild(this.createButton(faPlus, 'New Game', () => this.onNewGame?.()));
 
     return container;
   }
@@ -123,6 +131,8 @@ export class UIRenderer {
   onHint?: () => void;
   onPause?: () => void;
   onSettings?: () => void;
+  onNewGame?: () => void;
+  onStats?: () => void;
 
   /**
    * Update timer display

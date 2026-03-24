@@ -7,6 +7,7 @@ import './styles/main.css';
 import { Game } from './app/Game';
 import { LevelSelect } from './ui/LevelSelect';
 import { SettingsPanel } from './ui/SettingsPanel';
+import { StatsScreen } from './ui/StatsScreen';
 import { WinScreen } from './ui/WinScreen';
 import { UIRenderer } from './renderer/UIRenderer';
 import { NumberPad } from './ui/NumberPad';
@@ -38,6 +39,7 @@ class SquareWiseApp {
   private game: Game | null = null;
   private levelSelect: LevelSelect;
   private settingsPanel: SettingsPanel;
+  private statsScreen: StatsScreen;
   private winScreen: WinScreen;
   private uiRenderer: UIRenderer;
   private numberPad: NumberPad;
@@ -55,6 +57,7 @@ class SquareWiseApp {
     // Initialize UI components
     this.levelSelect = new LevelSelect();
     this.settingsPanel = new SettingsPanel();
+    this.statsScreen = new StatsScreen();
     this.settingsPanel.onThemeChange = () => {
       this.game?.refreshVisuals();
     };
@@ -146,6 +149,8 @@ class SquareWiseApp {
     this.uiRenderer.onHint = () => this.game?.['showHint']();
     this.uiRenderer.onPause = () => this.game?.['togglePause']();
     this.uiRenderer.onSettings = () => this.settingsPanel.toggle();
+    this.uiRenderer.onStats = () => this.statsScreen.show();
+    this.uiRenderer.onNewGame = () => this.levelSelect.show();
 
     // Level select callbacks
     this.levelSelect.setOnDifficultySelect((difficulty: Difficulty) => {
