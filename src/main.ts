@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     if (import.meta.env.PROD) {
-      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/squarewise/sw.js')
         .then((registration) => {
           console.log('SW registered:', registration.scope);
         })

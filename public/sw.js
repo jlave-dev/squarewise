@@ -1,5 +1,6 @@
 const CACHE_NAME = 'squarewise-v2';
-const APP_SHELL = ['/', '/index.html', '/manifest.json'];
+const BASE = new URL('.', self.location).pathname.replace(/\/$/, '');
+const APP_SHELL = [BASE + '/', BASE + '/index.html', BASE + '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -37,7 +38,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Fingerprinted production assets are safe for cache-first.
-  const isStaticAsset = url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/');
+  const isStaticAsset = url.pathname.startsWith(BASE + '/assets/') || url.pathname.startsWith(BASE + '/icons/');
   if (isStaticAsset) {
     event.respondWith(cacheFirst(request));
     return;
@@ -59,7 +60,7 @@ async function networkFirst(request) {
     if (cachedResponse) return cachedResponse;
 
     if (request.mode === 'navigate') {
-      const cachedShell = await caches.match('/index.html');
+      const cachedShell = await caches.match(BASE + '/index.html');
       if (cachedShell) return cachedShell;
     }
 
