@@ -20,6 +20,7 @@ const MOBILE_LAYOUT_CASES = [
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
+    if (window.location.search.includes('preserve-storage=1')) return;
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -44,6 +45,32 @@ test('debug new-game scenario renders playable app state', async ({ page }) => {
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
 
   await expectNoConsoleProblems(consoleProblems);
+});
+
+test('stale auto theme settings render as light even with dark system preference', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.addInitScript(() => {
+    localStorage.setItem('squarewise.userSettings.v1', JSON.stringify({
+      theme: 'auto',
+      showTimer: true,
+      showErrors: true,
+      soundEnabled: false,
+      hapticFeedback: true,
+      autoRemoveNotes: false,
+    }));
+  });
+
+  await page.goto('?scenario=new-game&difficulty=easy&preserve-storage=1');
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('.game-meta')).toContainText('Fresh - Easy - 5x5');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-mode', 'fresh');
+
+  const storedTheme = await page.evaluate(() => {
+    const raw = localStorage.getItem('squarewise.userSettings.v1');
+    return raw ? JSON.parse(raw).theme : null;
+  });
+  expect(storedTheme).toBe('light');
 });
 
 test('tutorial place-value step does not complete while notes mode is on', async ({ page }) => {
@@ -244,6 +271,54 @@ test.describe('mobile layout', () => {
     isMobile: true,
   });
 
+  test('level select scrolls to the final difficulty', async ({ page }) => {
+    const consoleProblems: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error' || message.type() === 'warning') {
+        consoleProblems.push(message.text());
+      }
+    });
+
+    await page.goto('?scenario=level-select');
+
+    const dialog = page.getByRole('dialog', { name: 'Select Puzzle' });
+    await expect(dialog).toBeVisible();
+
+    const beforeScroll = await dialog.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(beforeScroll.scrollHeight).toBeGreaterThan(beforeScroll.clientHeight);
+
+    await dialog.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+
+    const expertButton = dialog.getByRole('button', { name: /expert/i });
+    await expect(expertButton).toBeVisible();
+
+    const afterScroll = await dialog.evaluate((modal) => {
+      const expert = Array.from(modal.querySelectorAll('.difficulty-btn'))
+        .find((button) => button.textContent?.toLowerCase().includes('expert'));
+      if (!expert) return null;
+      const modalRect = modal.getBoundingClientRect();
+      const expertRect = expert.getBoundingClientRect();
+      return {
+        modalBottom: modalRect.bottom,
+        expertBottom: expertRect.bottom,
+      };
+    });
+
+    expect(afterScroll).not.toBeNull();
+    expect(afterScroll!.expertBottom).toBeLessThanOrEqual(afterScroll!.modalBottom + 1);
+
+    await expertButton.click();
+    await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-size', '9');
+    await expect(page.locator('.game-meta')).toContainText('Fresh - Expert - 9x9');
+
+    await expectNoConsoleProblems(consoleProblems);
+  });
+
   for (const { difficulty, gridSize } of MOBILE_LAYOUT_CASES) {
     test(`${difficulty} board stays fully visible above the keypad and touch input still works`, async ({ page }) => {
       const consoleProblems: string[] = [];
@@ -294,6 +369,9 @@ test.describe('mobile layout', () => {
       expect(layout).not.toBeNull();
       expect(layout!.canvas.left).toBeGreaterThanOrEqual(0);
       expect(layout!.canvas.right).toBeLessThanOrEqual(layout!.viewportWidth);
+      if (gridSize <= 6) {
+        expect(layout!.canvas.width).toBeGreaterThanOrEqual(layout!.viewportWidth - 1);
+      }
       expect(layout!.canvas.top).toBeGreaterThanOrEqual(layout!.headerBottom);
       expect(layout!.canvas.bottom).toBeLessThanOrEqual(layout!.keypadTop);
       expect(layout!.keypadBottom).toBeLessThanOrEqual(layout!.viewportHeight);

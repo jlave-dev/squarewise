@@ -54,10 +54,10 @@ test('buildBoardRenderState derives row, column, and cage context', () => {
   assert.deepEqual(state.selectedCageCells, [{ row: 0, col: 0 }, { row: 0, col: 1 }]);
   assert.ok(state.relatedCells.some((cell) => cell.row === 0 && cell.col === 3));
   assert.ok(state.relatedCells.some((cell) => cell.row === 3 && cell.col === 0));
-  assert.deepEqual(state.matchingValueCells, [{ row: 0, col: 0 }]);
+  assert.deepEqual(state.matchingValueCells, []);
 });
 
-test('buildBoardRenderState uses selected number override to highlight notes', () => {
+test('buildBoardRenderState keeps selected number without exposing board-wide matches', () => {
   const notes = createNotes();
   notes[0][1].add(2);
   notes[2][2].add(2);
@@ -80,7 +80,8 @@ test('buildBoardRenderState uses selected number override to highlight notes', (
 
   assert.equal(state.selectedNumber, 2);
   assert.equal(state.notesMode, true);
-  assert.deepEqual(state.matchingNoteCells, [{ row: 0, col: 1 }, { row: 2, col: 2 }]);
+  assert.deepEqual(state.matchingNoteCells, []);
+  assert.deepEqual(state.matchingValueCells, []);
   assert.deepEqual(state.errors, [{ row: 1, col: 1 }]);
 });
 

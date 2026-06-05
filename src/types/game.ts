@@ -65,7 +65,7 @@ export interface PlayerStats {
 
 // User settings
 export interface UserSettings {
-  theme: 'light' | 'dark' | 'auto';
+  theme: 'light' | 'dark';
   showTimer: boolean;
   showErrors: boolean;
   soundEnabled: boolean;

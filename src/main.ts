@@ -383,13 +383,8 @@ class SquareWiseApp {
     // Just ensure the canvas wrapper allows proper centering
   }
 
-  private applyTheme(theme: 'light' | 'dark' | 'auto'): void {
-    if (theme === 'auto') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    } else {
-      document.documentElement.setAttribute('data-theme', theme);
-    }
+  private applyTheme(theme: UserSettings['theme']): void {
+    document.documentElement.setAttribute('data-theme', theme);
 
     // Canvas uses computed CSS variables during draw calls; repaint after style recalc.
     if (this.themeRefreshFrameId !== null) {
