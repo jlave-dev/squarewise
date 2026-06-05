@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run end-to-end tests against production preview
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 5173
+        run: npm run test:e2e
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: npx semantic-release

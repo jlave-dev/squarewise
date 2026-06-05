@@ -1,5 +1,11 @@
-import type { Puzzle, Cell, Difficulty, PuzzleConfig } from '../types/puzzle';
-import type { UserSettings, GameStatus } from '../types/game';
+import type { Puzzle, Cell, Cage, Difficulty, PuzzleConfig } from '../types/puzzle';
+import type {
+  DailyBadge,
+  UserSettings,
+  GameStatus,
+  HintTier,
+  HintUsage,
+} from '../types/game';
 import { CanvasRenderer } from '../renderer/CanvasRenderer';
 import { InputHandler } from './InputHandler';
 import { StateManager } from './StateManager';
@@ -9,7 +15,11 @@ import { Validator } from '../engine/validation/Validator';
 import { generatePuzzle } from '../engine/generator/PuzzleGenerator';
 import { getDifficultyPreset } from '../engine/difficulty/presets';
 import { statsStore } from '../storage/StatsStore';
-import { HintSystem } from '../core/HintSystem';
+import { HintSystem, type HintStep } from '../core/HintSystem';
+import {
+  buildBoardRenderState,
+  type BoardRenderState,
+} from '../renderer/boardRenderState';
 import {
   clearActiveGame,
   loadActiveGame,
@@ -17,16 +27,55 @@ import {
 } from '../storage/ActiveGameStore';
 
 export interface GameCallbacks {
-  onWin?: (stats: { time: number; hintsUsed: number; difficulty: Difficulty; gridSize: number; isNewBest: boolean }) => void;
+  onWin?: (stats: {
+    time: number;
+    hintsUsed: number;
+    hintUsage: HintUsage;
+    mistakes: number;
+    difficulty: Difficulty;
+    gridSize: number;
+    isNewBest: boolean;
+    mode: GameSnapshot['mode'];
+    date: string | null;
+    puzzleId: string;
+    badges: DailyBadge[];
+    dailyStreak: number | null;
+  }) => void;
   onTimerUpdate?: (elapsed: number) => void;
+  onStateChange?: (snapshot: GameSnapshot) => void;
 }
 
 export interface DebugSessionState {
   grid: number[][];
+  notes?: number[][][];
   selectedCell: Cell | null;
   status: GameStatus;
   timer: number;
   hintsUsed: number;
+  hintUsage?: HintUsage;
+  mistakeCount?: number;
+  notesMode?: boolean;
+}
+
+export interface GameSnapshot {
+  grid: number[][];
+  notes: number[][][];
+  selectedCell: Cell | null;
+  status: GameStatus;
+  timer: number;
+  hintsUsed: number;
+  hintUsage: HintUsage;
+  mistakeCount: number;
+  lastHint: HintStep | null;
+  notesMode: boolean;
+  errors: Cell[];
+  cages: Array<Pick<Cage, 'id' | 'cells' | 'clue'>>;
+  puzzleId: string;
+  difficulty: Difficulty;
+  gridSize: number;
+  mode: 'daily' | 'fresh' | 'tutorial' | 'archive';
+  date: string | null;
+  renderState: BoardRenderState;
 }
 
 export class Game {
@@ -43,7 +92,10 @@ export class Game {
   private showErrors = true;
   private soundEnabled = false;
   private hapticEnabled = true;
+  private autoRemoveNotes = false;
   private audioContext: AudioContext | null = null;
+  private selectedNumber: number | null = null;
+  private lastHint: HintStep | null = null;
 
   constructor(canvas: HTMLCanvasElement, callbacks: GameCallbacks = {}) {
     this.callbacks = callbacks;
@@ -56,6 +108,7 @@ export class Game {
     this.stateManager = new StateManager(placeholderPuzzle);
     this.stateUnsubscribe = this.stateManager.subscribe(() => {
       this.persistActiveState();
+      this.emitStateChange();
     });
 
     this.inputHandler = new InputHandler(canvas, {
@@ -145,6 +198,8 @@ export class Game {
       status: snapshot.status,
       timer: snapshot.timer,
       hintsUsed: snapshot.hintsUsed,
+      hintUsage: snapshot.hintUsage,
+      mistakeCount: snapshot.mistakeCount,
     });
 
     this.timer.setElapsed(snapshot.timer);
@@ -180,9 +235,14 @@ export class Game {
   /**
    * Select a cell
    */
-  private selectCell(cell: Cell): void {
+  selectCell(cell: Cell): void {
     if (!this.canInteract()) return;
+    this.inputHandler.setSelectedCell(cell);
     this.stateManager.selectCell(cell);
+    const value = this.stateManager.getState().grid[cell.row][cell.col];
+    if (value > 0) {
+      this.selectedNumber = value;
+    }
     this.render();
   }
 
@@ -195,9 +255,15 @@ export class Game {
     if (!cell) return;
 
     const currentGrid = this.stateManager.getState().grid;
+    this.selectedNumber = value;
 
     if (this.notesMode) {
       // Toggle note
+      this.undoStack.push(
+        currentGrid,
+        this.stateManager.getState().notes,
+        { type: 'TOGGLE_NOTE', cell, value }
+      );
       this.stateManager.toggleNote(cell, value);
       this.provideFeedback('note');
     } else {
@@ -210,13 +276,18 @@ export class Game {
       );
 
       // Set value
-      this.stateManager.setCell(cell, value);
+      this.stateManager.setCell(cell, value, {
+        autoRemoveNotes: this.autoRemoveNotes,
+      });
+      if (this.isIncorrectPlacement(cell, value)) {
+        this.stateManager.recordMistake();
+      }
       this.updateValidationErrors();
       this.provideFeedback('input');
 
       // Check for win
       if (this.validator?.isComplete(this.stateManager.getState().grid)) {
-        this.handleWin();
+        void this.handleWin();
       }
     }
 
@@ -288,24 +359,47 @@ export class Game {
   private toggleNotesMode(): void {
     this.notesMode = !this.notesMode;
     this.persistActiveState();
+    this.emitStateChange();
+    this.render();
   }
 
   /**
    * Show a hint
    */
-  private showHint(): void {
+  private showHint(tier: HintTier = 1): void {
     if (!this.canInteract()) return;
     if (!this.hintSystem) return;
 
-    const hint = this.hintSystem.getHint(this.stateManager.getState().grid);
+    const state = this.stateManager.getState();
+    const hint = this.hintSystem.getHintStep(state.grid, tier);
     if (hint) {
-      this.stateManager.selectCell(hint.cell);
-      this.stateManager.useHint();
+      const targetCell = hint.focus.cells[0] ?? null;
+      if (targetCell) {
+        this.stateManager.selectCell(targetCell);
+      }
+      this.lastHint = hint;
+      this.stateManager.useHint(tier);
 
-      // Optionally reveal the value
-      if (hint.value) {
-        this.stateManager.setCell(hint.cell, hint.value);
+      if (hint.reveal && hint.value !== undefined && targetCell) {
+        this.undoStack.push(
+          state.grid,
+          state.notes,
+          {
+            type: 'SET_CELL',
+            cell: targetCell,
+            value: hint.value,
+            previousValue: state.grid[targetCell.row][targetCell.col],
+          }
+        );
+        this.stateManager.setCell(targetCell, hint.value, {
+          autoRemoveNotes: this.autoRemoveNotes,
+        });
         this.updateValidationErrors();
+
+        if (this.validator?.isComplete(this.stateManager.getState().grid)) {
+          void this.handleWin();
+          return;
+        }
       }
 
       this.provideFeedback('hint');
@@ -332,7 +426,7 @@ export class Game {
   /**
    * Handle winning the game
    */
-  private handleWin(): void {
+  private async handleWin(): Promise<void> {
     this.timer.pause();
     this.stateManager.winGame();
     this.stateManager.clearErrors();
@@ -344,19 +438,42 @@ export class Game {
     const difficulty = state.puzzle.difficulty;
     const hintsUsed = state.hintsUsed;
     const gridSize = state.puzzle.size;
+    const identity = this.getPuzzleIdentity(state.puzzle);
 
     // Check if this is a new best time
     const isNewBest = statsStore.isBestTime(difficulty, time);
+    let badges: DailyBadge[] = [];
+    let dailyStreak: number | null = null;
 
-    statsStore.recordCompletion(difficulty, time, hintsUsed > 0);
+    if (identity.mode === 'daily' && identity.date) {
+      const dailyResult = await statsStore.recordDailyCompletion({
+        date: identity.date,
+        difficulty,
+        puzzleId: state.puzzle.id,
+        time,
+        hintUsage: state.hintUsage,
+        mistakes: state.mistakeCount,
+      });
+      badges = dailyResult.completion.badges;
+      dailyStreak = dailyResult.currentDailyStreak;
+    }
+
+    await statsStore.recordCompletion(difficulty, time, hintsUsed > 0);
 
     // Notify app to show win screen
     this.callbacks.onWin?.({
       time,
       hintsUsed,
+      hintUsage: { ...state.hintUsage },
+      mistakes: state.mistakeCount,
       difficulty,
       gridSize,
       isNewBest,
+      mode: identity.mode,
+      date: identity.date,
+      puzzleId: state.puzzle.id,
+      badges,
+      dailyStreak,
     });
   }
 
@@ -365,9 +482,9 @@ export class Game {
    */
   private render(): void {
     const state = this.stateManager.getState();
-    this.renderer.setSelectedCell(state.selectedCell);
-    this.renderer.setErrorCells(this.showErrors ? state.errors : []);
-    this.renderer.render(state.puzzle, state.grid, state.notes);
+    const renderState = this.buildCurrentRenderState();
+    this.renderer.setRenderState(renderState);
+    this.renderer.render(state.puzzle, state.grid, state.notes, renderState);
     if (state.status === 'paused') {
       this.renderer.drawPauseOverlay();
     }
@@ -398,21 +515,63 @@ export class Game {
   }
 
   /**
+   * Test/dev-only non-solution game snapshot.
+   */
+  getSnapshot(): GameSnapshot {
+    const state = this.stateManager.getState();
+    const renderState = this.buildCurrentRenderState();
+    return {
+      grid: state.grid.map((row) => [...row]),
+      notes: this.serializeNotes(state.notes),
+      selectedCell: state.selectedCell ? { ...state.selectedCell } : null,
+      status: state.status,
+      timer: state.timer,
+      hintsUsed: state.hintsUsed,
+      hintUsage: { ...state.hintUsage },
+      mistakeCount: state.mistakeCount,
+      lastHint: this.lastHint ? this.cloneHintStep(this.lastHint) : null,
+      notesMode: this.notesMode,
+      errors: state.errors.map((cell) => ({ ...cell })),
+      cages: state.puzzle.cages.map((cage) => ({
+        id: cage.id,
+        clue: { ...cage.clue },
+        cells: cage.cells.map((cell) => ({ ...cell })),
+      })),
+      puzzleId: state.puzzle.id,
+      difficulty: state.puzzle.difficulty,
+      gridSize: state.puzzle.size,
+      ...this.getPuzzleIdentity(state.puzzle),
+      renderState,
+    };
+  }
+
+  /**
    * Test/dev-only hook: force a full in-memory session state
    */
   applyDebugSession(session: DebugSessionState): void {
     const current = this.stateManager.getState();
     const status = session.status === 'idle' ? 'playing' : session.status;
+    const notes = session.notes
+      ? session.notes.map((row) => row.map((cellNotes) => new Set(cellNotes)))
+      : current.notes;
+
     this.stateManager.restoreSession({
       grid: session.grid,
-      notes: current.notes,
+      notes,
       selectedCell: session.selectedCell,
       status,
       timer: session.timer,
       hintsUsed: session.hintsUsed,
+      hintUsage: session.hintUsage,
+      mistakeCount: session.mistakeCount,
     });
 
     this.timer.setElapsed(session.timer);
+    this.notesMode = session.notesMode ?? this.notesMode;
+    this.lastHint = null;
+    this.selectedNumber = session.selectedCell
+      ? session.grid[session.selectedCell.row]?.[session.selectedCell.col] || this.selectedNumber
+      : this.selectedNumber;
     if (status === 'playing') {
       this.timer.start();
     } else {
@@ -442,6 +601,7 @@ export class Game {
     this.showErrors = settings.showErrors;
     this.soundEnabled = settings.soundEnabled;
     this.hapticEnabled = settings.hapticFeedback;
+    this.autoRemoveNotes = settings.autoRemoveNotes;
 
     if (this.showErrors) {
       this.updateValidationErrors();
@@ -470,6 +630,8 @@ export class Game {
     this.undoStack.clear();
     this.timer.reset();
     this.notesMode = false;
+    this.selectedNumber = null;
+    this.lastHint = null;
     this.stateManager.clearErrors();
     console.log('[Game] Input handler config synced:', rendererConfig);
   }
@@ -491,10 +653,71 @@ export class Game {
       ),
       timer: state.timer,
       hintsUsed: state.hintsUsed,
+      hintUsage: state.hintUsage,
+      mistakeCount: state.mistakeCount,
       status: state.status,
       selectedCell: state.selectedCell,
       notesMode: this.notesMode,
     });
+  }
+
+  private buildCurrentRenderState(): BoardRenderState {
+    const state = this.stateManager.getState();
+    return buildBoardRenderState({
+      puzzle: state.puzzle,
+      grid: state.grid,
+      notes: state.notes,
+      selectedCell: state.selectedCell,
+      errors: this.showErrors ? state.errors : [],
+      notesMode: this.notesMode,
+      selectedNumberOverride: this.selectedNumber,
+    });
+  }
+
+  private emitStateChange(): void {
+    this.callbacks.onStateChange?.(this.getSnapshot());
+  }
+
+  private serializeNotes(notes: ReadonlyArray<ReadonlyArray<Set<number>>>): number[][][] {
+    return notes.map((row) => row.map((cellNotes) => Array.from(cellNotes).sort((a, b) => a - b)));
+  }
+
+  private cloneHintStep(hint: HintStep): HintStep {
+    return {
+      tier: hint.tier,
+      focus: {
+        cells: hint.focus.cells.map((cell) => ({ ...cell })),
+        cageId: hint.focus.cageId,
+        eliminatedValue: hint.focus.eliminatedValue,
+        reasonCells: hint.focus.reasonCells?.map((cell) => ({ ...cell })),
+      },
+      value: hint.value,
+      reason: hint.reason,
+      explanation: hint.explanation,
+      reveal: hint.reveal,
+    };
+  }
+
+  private getPuzzleIdentity(puzzle: Puzzle): {
+    mode: GameSnapshot['mode'];
+    date: string | null;
+  } {
+    const seed = puzzle.seed ?? puzzle.id;
+    const dailyMatch = seed.match(/^daily-(\d{4}-\d{2}-\d{2})-/);
+    if (dailyMatch) {
+      return { mode: 'daily', date: dailyMatch[1] };
+    }
+
+    if (seed.startsWith('tutorial-')) {
+      return { mode: 'tutorial', date: null };
+    }
+
+    if (seed.startsWith('archive-')) {
+      const archiveMatch = seed.match(/^archive-(\d{4}-\d{2}-\d{2})-/);
+      return { mode: 'archive', date: archiveMatch?.[1] ?? null };
+    }
+
+    return { mode: 'fresh', date: null };
   }
 
   /**
@@ -510,6 +733,11 @@ export class Game {
     this.stateManager.setErrors(errors);
   }
 
+  private isIncorrectPlacement(cell: Cell, value: number): boolean {
+    const puzzle = this.stateManager.getState().puzzle;
+    return puzzle.solution[cell.row]?.[cell.col] !== value;
+  }
+
   /**
    * Play optional input feedback based on user settings
    */
@@ -521,6 +749,7 @@ export class Game {
   private vibrate(durationMs: number): void {
     if (!this.hapticEnabled) return;
     if (!('vibrate' in navigator)) return;
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
     navigator.vibrate(durationMs);
   }
 

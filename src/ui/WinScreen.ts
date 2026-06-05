@@ -9,13 +9,22 @@ import {
 import { Modal } from './Modal';
 import { createIconElement } from './icons';
 import type { ShareLink } from '../app/share/ShareService';
+import type { DailyBadge, HintUsage } from '../types/game';
+import { prefersReducedMotion } from '../utils/animations';
 
 export interface WinStats {
   time: number;
   hintsUsed: number;
+  hintUsage?: HintUsage;
+  mistakes?: number;
   difficulty: string;
   gridSize: number;
   isNewBest: boolean;
+  mode?: 'daily' | 'fresh' | 'tutorial' | 'archive';
+  date?: string | null;
+  puzzleId?: string;
+  badges?: DailyBadge[];
+  dailyStreak?: number | null;
 }
 
 /**
@@ -28,10 +37,11 @@ export class WinScreen {
   private onShare?: (stats: WinStats) => void | Promise<void>;
   private shareActionsEl: HTMLDivElement | null = null;
   private shareStatusEl: HTMLDivElement | null = null;
+  private confettiTimeoutIds: number[] = [];
 
   constructor() {
     this.modal = new Modal();
-    this.modal.setOnClose(() => this.onNewGame?.());
+    this.modal.setOnClose(() => this.cleanupConfetti());
   }
 
   /**
@@ -45,7 +55,7 @@ export class WinScreen {
     const content = this.createContent(stats);
     this.modal.setContent(content);
 
-    this.modal.addButton('Play Again', () => {
+    this.modal.addButton(this.getPrimaryActionLabel(stats), () => {
       this.modal.close();
       this.onNewGame?.();
     }, 'primary');
@@ -58,7 +68,6 @@ export class WinScreen {
 
     this.modal.open();
 
-    // Trigger confetti effect
     this.triggerConfetti();
   }
 
@@ -79,9 +88,19 @@ export class WinScreen {
     `;
 
     statsGrid.appendChild(this.createStatItem('Time', this.formatTime(stats.time), faClock));
-    statsGrid.appendChild(this.createStatItem('Hints', stats.hintsUsed.toString(), faLightbulb));
+    statsGrid.appendChild(this.createStatItem('Hints', this.formatHintSummary(stats), faLightbulb));
     statsGrid.appendChild(this.createStatItem('Difficulty', stats.difficulty, faSignal));
     statsGrid.appendChild(this.createStatItem('Grid', `${stats.gridSize}×${stats.gridSize}`, faBorderAll));
+    if (stats.mistakes !== undefined) {
+      statsGrid.appendChild(this.createStatItem('Mistakes', this.formatMistakes(stats.mistakes), faSignal));
+    }
+
+    if (stats.mode === 'daily' && stats.date) {
+      statsGrid.appendChild(this.createStatItem('Daily', stats.date, faTrophy));
+      if (stats.dailyStreak !== null && stats.dailyStreak !== undefined) {
+        statsGrid.appendChild(this.createStatItem('Streak', String(stats.dailyStreak), faSignal));
+      }
+    }
 
     if (stats.isNewBest) {
       const bestBadge = document.createElement('div');
@@ -104,6 +123,10 @@ export class WinScreen {
     }
 
     container.appendChild(statsGrid);
+
+    if (stats.badges && stats.badges.length > 0) {
+      container.appendChild(this.createBadgeList(stats.badges));
+    }
 
     // Share text preview
     const sharePreview = document.createElement('div');
@@ -176,8 +199,64 @@ export class WinScreen {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
+  private createBadgeList(badges: DailyBadge[]): HTMLElement {
+    const list = document.createElement('div');
+    list.className = 'win-badges';
+
+    for (const badge of badges) {
+      const item = document.createElement('span');
+      item.className = 'win-badge';
+      item.textContent = this.formatBadge(badge);
+      list.appendChild(item);
+    }
+
+    return list;
+  }
+
+  private formatBadge(badge: DailyBadge): string {
+    const labels: Record<DailyBadge, string> = {
+      'no-hint': 'No hint',
+      'no-reveal': 'No reveal',
+      'mistake-free': 'Mistake-free',
+      'personal-best': 'Personal best',
+    };
+    return labels[badge];
+  }
+
   private generateShareText(stats: WinStats): string {
-    return `I solved a ${stats.gridSize}×${stats.gridSize} ${stats.difficulty} puzzle in ${this.formatTime(stats.time)} on SquareWise.`;
+    const puzzleLabel = stats.mode === 'daily' && stats.date
+      ? `the daily ${stats.date}`
+      : `a ${stats.gridSize}×${stats.gridSize} ${stats.difficulty}`;
+    const badges = stats.badges?.length ? ` ${stats.badges.map((badge) => this.formatBadge(badge)).join(', ')}.` : '';
+    const mistakes = stats.mistakes !== undefined ? `, ${this.formatMistakes(stats.mistakes)}` : '';
+    return `I solved ${puzzleLabel} puzzle in ${this.formatTime(stats.time)} on SquareWise (${this.formatHintSummary(stats)}${mistakes}).${badges}`;
+  }
+
+  private getPrimaryActionLabel(stats: WinStats): string {
+    if (stats.mode === 'daily') return 'Play archive';
+    if (stats.mode === 'archive') return 'Play another';
+    return 'New game';
+  }
+
+  private formatHintSummary(stats: WinStats): string {
+    if (!stats.hintUsage) {
+      return stats.hintsUsed.toString();
+    }
+
+    if (stats.hintsUsed === 0) {
+      return 'No hints';
+    }
+
+    if (stats.hintUsage.tier4 > 0) {
+      const suffix = stats.hintUsage.tier4 === 1 ? 'reveal' : 'reveals';
+      return `${stats.hintsUsed} hints, ${stats.hintUsage.tier4} ${suffix}`;
+    }
+
+    return `${stats.hintsUsed} hints, no reveals`;
+  }
+
+  private formatMistakes(mistakes: number): string {
+    return mistakes === 1 ? '1 mistake' : `${mistakes} mistakes`;
   }
 
   showShareFallback(links: ShareLink[], copyText: string): void {
@@ -234,11 +313,18 @@ export class WinScreen {
   }
 
   private triggerConfetti(): void {
+    this.cleanupConfetti();
+
+    if (prefersReducedMotion()) {
+      return;
+    }
+
     // Simple confetti effect using CSS animations
     const colors = ['#6366F1', '#22C55E', '#EF4444', '#F59E0B', '#8B5CF6'];
 
     for (let i = 0; i < 50; i++) {
       const confetti = document.createElement('div');
+      confetti.className = 'win-confetti';
       confetti.style.cssText = `
         position: fixed;
         width: 10px;
@@ -254,7 +340,12 @@ export class WinScreen {
 
       document.body.appendChild(confetti);
 
-      setTimeout(() => confetti.remove(), 4000);
+      const timeoutId = window.setTimeout(() => {
+        confetti.remove();
+        this.confettiTimeoutIds = this.confettiTimeoutIds.filter((id) => id !== timeoutId);
+        this.removeConfettiStyleIfIdle();
+      }, 4000);
+      this.confettiTimeoutIds.push(timeoutId);
     }
 
     // Add confetti animation if not already in page
@@ -269,6 +360,22 @@ export class WinScreen {
       `;
       document.head.appendChild(style);
     }
+  }
+
+  private cleanupConfetti(): void {
+    for (const timeoutId of this.confettiTimeoutIds) {
+      window.clearTimeout(timeoutId);
+    }
+    this.confettiTimeoutIds = [];
+    document.querySelectorAll('.win-confetti').forEach((element) => element.remove());
+    this.removeConfettiStyleIfIdle();
+  }
+
+  private removeConfettiStyleIfIdle(): void {
+    if (document.querySelector('.win-confetti')) {
+      return;
+    }
+    document.getElementById('confetti-style')?.remove();
   }
 
   /**

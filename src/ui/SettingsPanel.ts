@@ -2,7 +2,12 @@ import { Modal } from './Modal';
 import { settingsStore } from '../storage/SettingsStore';
 import type { UserSettings } from '../types/game';
 
-type ToggleSettingKey = 'showTimer' | 'showErrors' | 'soundEnabled' | 'hapticFeedback';
+type ToggleSettingKey =
+  | 'showTimer'
+  | 'showErrors'
+  | 'soundEnabled'
+  | 'hapticFeedback'
+  | 'autoRemoveNotes';
 
 /**
  * Settings panel UI
@@ -83,6 +88,11 @@ export class SettingsPanel {
     container.appendChild(this.createSettingItem(
       'Show Errors',
       this.createToggle('showErrors', this.settings?.showErrors ?? true)
+    ));
+
+    container.appendChild(this.createSettingItem(
+      'Auto-remove Notes',
+      this.createToggle('autoRemoveNotes', this.settings?.autoRemoveNotes ?? false)
     ));
 
     container.appendChild(this.createSettingItem(

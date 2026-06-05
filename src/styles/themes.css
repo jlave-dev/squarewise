@@ -22,17 +22,23 @@
 
   --cell-selected: rgba(99, 102, 241, 0.2);
   --cell-highlight: rgba(99, 102, 241, 0.1);
+  --cell-related: rgba(14, 165, 233, 0.08);
+  --cell-selected-cage: rgba(20, 184, 166, 0.12);
+  --cell-same-number: rgba(245, 158, 11, 0.16);
+  --cell-note-match: rgba(245, 158, 11, 0.09);
   --cell-error: rgba(239, 68, 68, 0.2);
+  --cage-border-selected: #0F766E;
+  --note-highlight: #B45309;
+  --notes-mode-accent: rgba(20, 184, 166, 0.24);
 
-  /* Cage colors - increased opacity for better visibility */
-  --cage-color-1: rgba(239, 246, 255, 0.7);
-  --cage-color-2: rgba(254, 243, 199, 0.7);
-  --cage-color-3: rgba(220, 252, 231, 0.7);
-  --cage-color-4: rgba(254, 226, 226, 0.7);
-  --cage-color-5: rgba(243, 232, 255, 0.7);
-  --cage-color-6: rgba(255, 237, 213, 0.7);
-  --cage-color-7: rgba(226, 254, 255, 0.7);
-  --cage-color-8: rgba(254, 249, 195, 0.7);
+  --cage-color-1: rgba(239, 246, 255, 0.46);
+  --cage-color-2: rgba(254, 243, 199, 0.42);
+  --cage-color-3: rgba(220, 252, 231, 0.42);
+  --cage-color-4: rgba(254, 226, 226, 0.36);
+  --cage-color-5: rgba(243, 232, 255, 0.38);
+  --cage-color-6: rgba(255, 237, 213, 0.38);
+  --cage-color-7: rgba(226, 254, 255, 0.38);
+  --cage-color-8: rgba(254, 249, 195, 0.34);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -65,15 +71,21 @@
 
   --cell-selected: rgba(129, 140, 248, 0.3);
   --cell-highlight: rgba(129, 140, 248, 0.15);
+  --cell-related: rgba(56, 189, 248, 0.12);
+  --cell-selected-cage: rgba(45, 212, 191, 0.14);
+  --cell-same-number: rgba(251, 191, 36, 0.18);
+  --cell-note-match: rgba(251, 191, 36, 0.11);
   --cell-error: rgba(248, 113, 113, 0.3);
+  --cage-border-selected: #5EEAD4;
+  --note-highlight: #FCD34D;
+  --notes-mode-accent: rgba(45, 212, 191, 0.28);
 
-  /* Dark mode cage colors - increased saturation for better visibility */
-  --cage-color-1: rgba(59, 130, 246, 0.4);
-  --cage-color-2: rgba(234, 179, 8, 0.4);
-  --cage-color-3: rgba(34, 197, 94, 0.4);
-  --cage-color-4: rgba(239, 68, 68, 0.4);
-  --cage-color-5: rgba(168, 85, 247, 0.4);
-  --cage-color-6: rgba(249, 115, 22, 0.4);
-  --cage-color-7: rgba(6, 182, 212, 0.4);
-  --cage-color-8: rgba(236, 72, 153, 0.4);
+  --cage-color-1: rgba(59, 130, 246, 0.18);
+  --cage-color-2: rgba(234, 179, 8, 0.16);
+  --cage-color-3: rgba(34, 197, 94, 0.16);
+  --cage-color-4: rgba(239, 68, 68, 0.15);
+  --cage-color-5: rgba(168, 85, 247, 0.16);
+  --cage-color-6: rgba(249, 115, 22, 0.16);
+  --cage-color-7: rgba(6, 182, 212, 0.17);
+  --cage-color-8: rgba(236, 72, 153, 0.14);
 }

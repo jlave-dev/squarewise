@@ -1,5 +1,9 @@
 import type { Cell, NotesGrid, Puzzle } from '../types/puzzle';
 import { getNoteAnchor } from './noteLayout';
+import {
+  EMPTY_BOARD_RENDER_STATE,
+  type BoardRenderState,
+} from './boardRenderState';
 
 interface RendererConfig {
   cellSize: number;
@@ -23,7 +27,7 @@ export class CanvasRenderer {
   private puzzle: Puzzle | null = null;
   private grid: number[][] | null = null;
   private notes: NotesGrid | null = null;
-  private selectedCell: { row: number; col: number } | null = null;
+  private renderState: BoardRenderState = EMPTY_BOARD_RENDER_STATE;
   private errorCells: Set<string> = new Set();
   private readonly resizeHandler: () => void;
 
@@ -63,7 +67,7 @@ export class CanvasRenderer {
   private handleResize(): void {
     this.setupCanvas();
     if (this.puzzle && this.grid && this.notes) {
-      this.render(this.puzzle, this.grid, this.notes);
+      this.render(this.puzzle, this.grid, this.notes, this.renderState);
     }
   }
 
@@ -120,7 +124,10 @@ export class CanvasRenderer {
    * Set the selected cell for highlighting
    */
   setSelectedCell(cell: { row: number; col: number } | null): void {
-    this.selectedCell = cell;
+    this.renderState = {
+      ...this.renderState,
+      selectedCell: cell,
+    };
   }
 
   /**
@@ -128,19 +135,65 @@ export class CanvasRenderer {
    */
   setErrorCells(cells: Cell[]): void {
     this.errorCells = new Set(cells.map((cell) => `${cell.row},${cell.col}`));
+    this.renderState = {
+      ...this.renderState,
+      errors: cells.map((cell) => ({ ...cell })),
+    };
+  }
+
+  /**
+   * Provide all contextual state needed to render board affordances.
+   */
+  setRenderState(state: BoardRenderState): void {
+    this.renderState = {
+      selectedCell: state.selectedCell ? { ...state.selectedCell } : null,
+      selectedNumber: state.selectedNumber,
+      selectedCageId: state.selectedCageId,
+      relatedCells: state.relatedCells.map((cell) => ({ ...cell })),
+      selectedCageCells: state.selectedCageCells.map((cell) => ({ ...cell })),
+      matchingValueCells: state.matchingValueCells.map((cell) => ({ ...cell })),
+      matchingNoteCells: state.matchingNoteCells.map((cell) => ({ ...cell })),
+      notesMode: state.notesMode,
+      errors: state.errors.map((cell) => ({ ...cell })),
+    };
+    this.errorCells = new Set(state.errors.map((cell) => `${cell.row},${cell.col}`));
+  }
+
+  /**
+   * Test/debug snapshot of the visible render contract.
+   */
+  getRenderStateSnapshot(): BoardRenderState {
+    return {
+      selectedCell: this.renderState.selectedCell ? { ...this.renderState.selectedCell } : null,
+      selectedNumber: this.renderState.selectedNumber,
+      selectedCageId: this.renderState.selectedCageId,
+      relatedCells: this.renderState.relatedCells.map((cell) => ({ ...cell })),
+      selectedCageCells: this.renderState.selectedCageCells.map((cell) => ({ ...cell })),
+      matchingValueCells: this.renderState.matchingValueCells.map((cell) => ({ ...cell })),
+      matchingNoteCells: this.renderState.matchingNoteCells.map((cell) => ({ ...cell })),
+      notesMode: this.renderState.notesMode,
+      errors: this.renderState.errors.map((cell) => ({ ...cell })),
+    };
   }
 
   /**
    * Main render method
    */
-  render(puzzle: Puzzle, grid: number[][], notes: NotesGrid): void {
+  render(
+    puzzle: Puzzle,
+    grid: number[][],
+    notes: NotesGrid,
+    renderState: BoardRenderState = this.renderState
+  ): void {
     this.puzzle = puzzle;
     this.grid = grid;
     this.notes = notes;
+    this.setRenderState(renderState);
 
     this.clear();
     this.drawBackground();
     this.drawCages();
+    this.drawContextHighlights();
     this.drawErrorHighlights();
     this.drawGrid();
     this.drawCageBorders();
@@ -211,6 +264,47 @@ export class CanvasRenderer {
 
       const { x, y } = this.getCellPosition(row, col);
       this.ctx.fillRect(x, y, this.config.cellSize, this.config.cellSize);
+
+      const errorColor = getComputedStyle(document.documentElement)
+        .getPropertyValue('--error').trim() || '#EF4444';
+      this.ctx.strokeStyle = errorColor;
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(x + 4, y + 4, this.config.cellSize - 8, this.config.cellSize - 8);
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + this.config.cellSize - 18, y + 8);
+      this.ctx.lineTo(x + this.config.cellSize - 8, y + 18);
+      this.ctx.stroke();
+    }
+  }
+
+  /**
+   * Draw related row, column, cage, and selected-number context.
+   */
+  private drawContextHighlights(): void {
+    if (!this.puzzle) return;
+
+    const relatedColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cell-related').trim() || 'rgba(14, 165, 233, 0.09)';
+    const cageColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cell-selected-cage').trim() || 'rgba(20, 184, 166, 0.12)';
+    const matchColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cell-same-number').trim() || 'rgba(245, 158, 11, 0.16)';
+    const noteMatchColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cell-note-match').trim() || 'rgba(245, 158, 11, 0.09)';
+    const notesModeColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--notes-mode-accent').trim() || 'rgba(20, 184, 166, 0.22)';
+
+    this.fillCells(this.renderState.relatedCells, relatedColor);
+    this.fillCells(this.renderState.selectedCageCells, cageColor);
+    this.fillCells(this.renderState.matchingNoteCells, noteMatchColor);
+    this.fillCells(this.renderState.matchingValueCells, matchColor);
+
+    if (this.renderState.notesMode) {
+      const { originX, originY } = this.getOrigin();
+      const gridSize = this.puzzle.size * this.config.cellSize;
+      this.ctx.strokeStyle = notesModeColor;
+      this.ctx.lineWidth = 4;
+      this.ctx.strokeRect(originX - 8, originY - 8, gridSize + 16, gridSize + 16);
     }
   }
 
@@ -218,11 +312,15 @@ export class CanvasRenderer {
    * Draw selected cell fill under numbers/clues.
    */
   private drawSelectedCellFill(): void {
-    if (!this.selectedCell || !this.puzzle) return;
+    if (!this.renderState.selectedCell || !this.puzzle) return;
 
-    const { x, y } = this.getCellPosition(this.selectedCell.row, this.selectedCell.col);
+    const { x, y } = this.getCellPosition(
+      this.renderState.selectedCell.row,
+      this.renderState.selectedCell.col
+    );
 
-    this.ctx.fillStyle = 'rgba(59, 130, 246, 0.16)';
+    this.ctx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cell-selected').trim() || 'rgba(59, 130, 246, 0.18)';
     this.ctx.fillRect(x, y, this.config.cellSize, this.config.cellSize);
   }
 
@@ -230,11 +328,15 @@ export class CanvasRenderer {
    * Draw selected cell border over numbers/clues.
    */
   private drawSelectedCellOutline(): void {
-    if (!this.selectedCell || !this.puzzle) return;
+    if (!this.renderState.selectedCell || !this.puzzle) return;
 
-    const { x, y } = this.getCellPosition(this.selectedCell.row, this.selectedCell.col);
+    const { x, y } = this.getCellPosition(
+      this.renderState.selectedCell.row,
+      this.renderState.selectedCell.col
+    );
 
-    this.ctx.strokeStyle = '#3B82F6';
+    this.ctx.strokeStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent').trim() || '#3B82F6';
     this.ctx.lineWidth = 3;
     this.ctx.strokeRect(x + 1.5, y + 1.5, this.config.cellSize - 3, this.config.cellSize - 3);
   }
@@ -281,13 +383,16 @@ export class CanvasRenderer {
 
     const borderColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--cage-border').trim() || '#475569';
-
-    this.ctx.strokeStyle = borderColor;
-    this.ctx.lineWidth = 3;
+    const selectedBorderColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cage-border-selected').trim() || '#14B8A6';
 
     const { originX, originY } = this.getOrigin();
 
     for (const cage of this.puzzle.cages) {
+      this.ctx.strokeStyle =
+        cage.id === this.renderState.selectedCageId ? selectedBorderColor : borderColor;
+      this.ctx.lineWidth = cage.id === this.renderState.selectedCageId ? 4 : 2.5;
+
       // Find cage boundaries
       const borders = this.getCageBorders(cage.cells);
 
@@ -397,9 +502,10 @@ export class CanvasRenderer {
 
     const noteColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--text-secondary').trim() || '#64748B';
+    const highlightedNoteColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--note-highlight').trim() || '#B45309';
     const noteSize = Math.max(12, Math.floor(this.config.cellSize * 0.18));
 
-    this.ctx.fillStyle = noteColor;
     this.ctx.font = this.getCanvasFont(noteSize);
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -418,6 +524,8 @@ export class CanvasRenderer {
           if (!anchor) continue;
           const noteX = x + this.config.cellSize * anchor.xFactor;
           const noteY = y + this.config.cellSize * anchor.yFactor;
+          this.ctx.fillStyle =
+            note === this.renderState.selectedNumber ? highlightedNoteColor : noteColor;
           this.ctx.fillText(String(note), noteX, noteY);
         }
       }
@@ -491,6 +599,14 @@ export class CanvasRenderer {
       originX: this.config.padding,
       originY: this.config.padding,
     };
+  }
+
+  private fillCells(cells: Cell[], color: string): void {
+    this.ctx.fillStyle = color;
+    for (const cell of cells) {
+      const { x, y } = this.getCellPosition(cell.row, cell.col);
+      this.ctx.fillRect(x, y, this.config.cellSize, this.config.cellSize);
+    }
   }
 
   /**

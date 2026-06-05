@@ -1,8 +1,10 @@
 import { Modal } from './Modal';
 import { getDifficulties, getDifficultyDescription, getGridSize } from '../engine/difficulty/presets';
 import type { Difficulty } from '../types/puzzle';
+import { formatLocalDate } from '../core/DailyChallenge';
 
 type DifficultySelectCallback = (difficulty: Difficulty) => void;
+type ArchiveSelectCallback = (date: string, difficulty: Difficulty) => void;
 
 /**
  * Level/difficulty selection UI
@@ -11,6 +13,8 @@ export class LevelSelect {
   private modal: Modal;
   private onDifficultySelect?: DifficultySelectCallback;
   private onDailyChallenge?: () => void;
+  private onTutorial?: () => void;
+  private onArchiveChallenge?: ArchiveSelectCallback;
 
   constructor() {
     this.modal = new Modal();
@@ -40,6 +44,11 @@ export class LevelSelect {
     // Daily challenge button
     const dailyBtn = this.createDailyChallengeButton();
     container.appendChild(dailyBtn);
+
+    const tutorialBtn = this.createTutorialButton();
+    container.appendChild(tutorialBtn);
+
+    container.appendChild(this.createArchiveSection());
 
     // Separator
     const separator = document.createElement('div');
@@ -102,6 +111,53 @@ export class LevelSelect {
       this.onDailyChallenge?.();
     });
 
+    return btn;
+  }
+
+  private createTutorialButton(): HTMLElement {
+    const btn = document.createElement('button');
+    btn.className = 'tutorial-launch-btn btn btn-secondary';
+    btn.type = 'button';
+    btn.textContent = 'Tutorial';
+    btn.addEventListener('click', () => {
+      this.modal.close();
+      this.onTutorial?.();
+    });
+    return btn;
+  }
+
+  private createArchiveSection(): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'archive-section';
+
+    const title = document.createElement('div');
+    title.className = 'archive-title';
+    title.textContent = 'Archive';
+    section.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'archive-list';
+    const today = new Date();
+    for (let offset = 1; offset <= 7; offset++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - offset);
+      const dateString = formatLocalDate(date);
+      list.appendChild(this.createArchiveButton(dateString, 'medium'));
+    }
+    section.appendChild(list);
+
+    return section;
+  }
+
+  private createArchiveButton(date: string, difficulty: Difficulty): HTMLElement {
+    const btn = document.createElement('button');
+    btn.className = 'archive-btn';
+    btn.type = 'button';
+    btn.textContent = date;
+    btn.addEventListener('click', () => {
+      this.modal.close();
+      this.onArchiveChallenge?.(date, difficulty);
+    });
     return btn;
   }
 
@@ -209,6 +265,14 @@ export class LevelSelect {
    */
   setOnDailyChallenge(callback: () => void): void {
     this.onDailyChallenge = callback;
+  }
+
+  setOnTutorial(callback: () => void): void {
+    this.onTutorial = callback;
+  }
+
+  setOnArchiveChallenge(callback: ArchiveSelectCallback): void {
+    this.onArchiveChallenge = callback;
   }
 
   /**

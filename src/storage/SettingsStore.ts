@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   showErrors: true,
   soundEnabled: false,
   hapticFeedback: true,
+  autoRemoveNotes: false,
 };
 
 const SETTINGS_KEY = 'userSettings';
@@ -159,6 +160,10 @@ class SettingsStore {
 
   get hapticFeedback(): boolean {
     return this.settings.hapticFeedback;
+  }
+
+  get autoRemoveNotes(): boolean {
+    return this.settings.autoRemoveNotes;
   }
 }
 

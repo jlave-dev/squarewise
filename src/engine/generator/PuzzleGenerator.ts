@@ -5,17 +5,54 @@ import { generateCages } from './CageGenerator';
 import { assignClues } from './ClueCalculator';
 import { hasUniqueSolution } from '../solver/BacktrackSolver';
 import { getDifficultyPreset } from '../difficulty/presets';
+import { DifficultyEngine, type DifficultyReport, type UniquenessStatus } from '../difficulty/DifficultyEngine';
+
+export interface PuzzleGenerationOptions extends PuzzleConfig {
+  maxAttempts?: number;
+  validateUniqueness?: boolean | 'auto';
+  logAttempts?: boolean;
+  requireApproachableOpening?: boolean;
+}
+
+export interface PuzzleGenerationAttempt {
+  attempt: number;
+  puzzleId: string;
+  uniquenessStatus: UniquenessStatus;
+  difficultyScore: number;
+  inTargetBand: boolean;
+  approachableOpeningCount: number;
+  accepted: boolean;
+  rejectionReason?: 'not-unique' | 'no-approachable-opening';
+}
+
+export interface PuzzleGenerationResult {
+  puzzle: Puzzle;
+  difficultyReport: DifficultyReport;
+  attempts: number;
+  attemptLog: PuzzleGenerationAttempt[];
+}
 
 /**
  * Generate a complete puzzle with the given configuration
  */
-export async function generatePuzzle(config: PuzzleConfig): Promise<Puzzle> {
+export async function generatePuzzle(config: PuzzleGenerationOptions): Promise<Puzzle> {
+  return (await generatePuzzleWithReport(config)).puzzle;
+}
+
+/**
+ * Generate a complete puzzle and return tuning/validation metadata.
+ */
+export async function generatePuzzleWithReport(config: PuzzleGenerationOptions): Promise<PuzzleGenerationResult> {
   const { size, difficulty, seed } = config;
   const rng = createRNG(seed ?? Date.now().toString());
   const preset = getDifficultyPreset(difficulty);
+  const difficultyEngine = new DifficultyEngine(difficulty);
 
   let attempts = 0;
-  const maxAttempts = 10;
+  const maxAttempts = config.maxAttempts ?? 10;
+  const attemptLog: PuzzleGenerationAttempt[] = [];
+  const requireApproachableOpening =
+    config.requireApproachableOpening ?? (difficulty === 'beginner' || difficulty === 'easy');
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -34,7 +71,7 @@ export async function generatePuzzle(config: PuzzleConfig): Promise<Puzzle> {
     assignClues(cages, solution, preset.operations, rng);
 
     // Create puzzle ID
-    const puzzleId = generatePuzzleId(difficulty, size, rng);
+    const puzzleId = generatePuzzleId(difficulty, size, rng, seed);
 
     const puzzle: Puzzle = {
       id: puzzleId,
@@ -45,16 +82,62 @@ export async function generatePuzzle(config: PuzzleConfig): Promise<Puzzle> {
       seed: seed ?? undefined,
     };
 
-    // Validate unique solution (skip for larger puzzles to save time)
-    if (size <= 7) {
+    let uniquenessStatus: UniquenessStatus = 'skipped';
+    const shouldValidateUniqueness =
+      config.validateUniqueness === true || (config.validateUniqueness !== false && size <= 7);
+
+    if (shouldValidateUniqueness) {
       const hasUnique = await hasUniqueSolution(puzzle);
+      uniquenessStatus = hasUnique ? 'unique' : 'multiple';
       if (!hasUnique) {
-        console.log(`Puzzle attempt ${attempts} failed - not unique solution`);
+        const report = difficultyEngine.getReport(puzzle, { uniquenessStatus });
+        recordAttempt({
+          attemptLog,
+          attempt: attempts,
+          puzzle,
+          report,
+          uniquenessStatus,
+          accepted: false,
+          rejectionReason: 'not-unique',
+          logAttempts: config.logAttempts,
+        });
         continue;
       }
     }
 
-    return puzzle;
+    const difficultyReport = difficultyEngine.getReport(puzzle, { uniquenessStatus });
+    const hasApproachableOpening = difficultyReport.signals.approachableOpeningCount > 0;
+
+    if (requireApproachableOpening && !hasApproachableOpening) {
+      recordAttempt({
+        attemptLog,
+        attempt: attempts,
+        puzzle,
+        report: difficultyReport,
+        uniquenessStatus,
+        accepted: false,
+        rejectionReason: 'no-approachable-opening',
+        logAttempts: config.logAttempts,
+      });
+      continue;
+    }
+
+    recordAttempt({
+      attemptLog,
+      attempt: attempts,
+      puzzle,
+      report: difficultyReport,
+      uniquenessStatus,
+      accepted: true,
+      logAttempts: config.logAttempts,
+    });
+
+    return {
+      puzzle,
+      difficultyReport,
+      attempts,
+      attemptLog,
+    };
   }
 
   throw new Error(`Failed to generate valid puzzle after ${maxAttempts} attempts`);
@@ -78,7 +161,7 @@ export function generatePuzzleSync(config: PuzzleConfig): Puzzle {
   assignClues(cages, solution, preset.operations, rng);
 
   return {
-    id: generatePuzzleId(difficulty, size, rng),
+    id: generatePuzzleId(difficulty, size, rng, seed),
     size,
     difficulty,
     cages,
@@ -119,7 +202,16 @@ export function generateRandomPuzzle(size: number, difficulty: Difficulty): Prom
 /**
  * Generate a unique puzzle ID
  */
-function generatePuzzleId(difficulty: Difficulty, size: number, rng: SeededRNG): string {
+function generatePuzzleId(difficulty: Difficulty, size: number, rng: SeededRNG, seed?: string): string {
+  if (seed) {
+    const safeSeed = seed
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    return `${safeSeed}-${size}x${size}`;
+  }
+
   const timestamp = Date.now();
   const random = rng.nextInt(1000, 9999);
   return `${difficulty}-${size}x${size}-${timestamp}-${random}`;
@@ -169,4 +261,41 @@ export function validatePuzzle(puzzle: Puzzle): { valid: boolean; errors: string
     valid: errors.length === 0,
     errors,
   };
+}
+
+function recordAttempt({
+  attemptLog,
+  attempt,
+  puzzle,
+  report,
+  uniquenessStatus,
+  accepted,
+  rejectionReason,
+  logAttempts,
+}: {
+  attemptLog: PuzzleGenerationAttempt[];
+  attempt: number;
+  puzzle: Puzzle;
+  report: DifficultyReport;
+  uniquenessStatus: UniquenessStatus;
+  accepted: boolean;
+  rejectionReason?: PuzzleGenerationAttempt['rejectionReason'];
+  logAttempts?: boolean;
+}): void {
+  const entry: PuzzleGenerationAttempt = {
+    attempt,
+    puzzleId: puzzle.id,
+    uniquenessStatus,
+    difficultyScore: report.score,
+    inTargetBand: report.inTargetBand,
+    approachableOpeningCount: report.signals.approachableOpeningCount,
+    accepted,
+    rejectionReason,
+  };
+
+  attemptLog.push(entry);
+
+  if (logAttempts) {
+    console.info('[SquareWise] Puzzle generation attempt', entry);
+  }
 }

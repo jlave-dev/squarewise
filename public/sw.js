@@ -1,4 +1,4 @@
-const CACHE_NAME = 'squarewise-v2';
+const CACHE_NAME = 'squarewise-v3';
 const BASE = new URL('.', self.location).pathname.replace(/\/$/, '');
 const APP_SHELL = [BASE + '/', BASE + '/index.html', BASE + '/manifest.json'];
 

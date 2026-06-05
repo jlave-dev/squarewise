@@ -1,0 +1,41 @@
+name: Commit Policy
+
+on:
+  pull_request:
+    types: [opened, edited, ready_for_review, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pushed-commits:
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint pushed commit messages
+        run: |
+          FROM_SHA="${{ github.event.before }}"
+          if [ "$FROM_SHA" = "0000000000000000000000000000000000000000" ]; then
+            FROM_SHA="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          fi
+
+          npx commitlint --from "$FROM_SHA" --to "${{ github.sha }}" --verbose
