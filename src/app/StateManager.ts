@@ -1,4 +1,4 @@
-import type { GameState, GameStatus } from '../types/game';
+import type { GameState, GameStatus, HintTier, HintUsage } from '../types/game';
 import type { Puzzle, Cell, Grid, NotesGrid } from '../types/puzzle';
 
 type StateChangeListener = (state: GameState) => void;
@@ -19,6 +19,13 @@ const createEmptyGrid = (size: number): Grid => {
   return Array(size).fill(null).map(() => Array(size).fill(0));
 };
 
+const createEmptyHintUsage = (): HintUsage => ({
+  tier1: 0,
+  tier2: 0,
+  tier3: 0,
+  tier4: 0,
+});
+
 export class StateManager {
   private state: GameState;
   private listeners: Set<StateChangeListener> = new Set();
@@ -38,6 +45,8 @@ export class StateManager {
       status: 'idle',
       timer: 0,
       hintsUsed: 0,
+      hintUsage: createEmptyHintUsage(),
+      mistakeCount: 0,
       errors: [],
     };
   }
@@ -132,10 +141,13 @@ export class StateManager {
   /**
    * Set a cell value
    */
-  setCell(cell: Cell, value: number): void {
+  setCell(cell: Cell, value: number, options: { autoRemoveNotes?: boolean } = {}): void {
     const newGrid = this.state.grid.map((row, r) =>
       row.map((v, c) => (r === cell.row && c === cell.col ? value : v))
     );
+    const cellsToRemoveFrom = options.autoRemoveNotes
+      ? this.getCellsAffectedByPlacement(cell)
+      : new Set<string>();
 
     // Clear notes for this cell when setting value
     const newNotes = this.state.notes.map((row, r) =>
@@ -143,7 +155,14 @@ export class StateManager {
         if (r === cell.row && c === cell.col) {
           return new Set<number>();
         }
-        return new Set(notes);
+        const nextNotes = new Set(notes);
+        if (
+          cellsToRemoveFrom.has(`${r},${c}`) &&
+          this.state.grid[r][c] === 0
+        ) {
+          nextNotes.delete(value);
+        }
+        return nextNotes;
       })
     );
 
@@ -197,6 +216,33 @@ export class StateManager {
   }
 
   /**
+   * Cells whose candidates are constrained by placing a value in the given cell.
+   */
+  getCellsAffectedByPlacement(cell: Cell): Set<string> {
+    const affected = new Set<string>();
+
+    for (let col = 0; col < this.state.puzzle.size; col++) {
+      if (col !== cell.col) affected.add(`${cell.row},${col}`);
+    }
+
+    for (let row = 0; row < this.state.puzzle.size; row++) {
+      if (row !== cell.row) affected.add(`${row},${cell.col}`);
+    }
+
+    const cage = this.state.puzzle.cages.find((candidate) =>
+      candidate.cells.some((cageCell) => cageCell.row === cell.row && cageCell.col === cell.col)
+    );
+    if (cage) {
+      for (const cageCell of cage.cells) {
+        if (cageCell.row === cell.row && cageCell.col === cell.col) continue;
+        affected.add(`${cageCell.row},${cageCell.col}`);
+      }
+    }
+
+    return affected;
+  }
+
+  /**
    * Update timer
    */
   updateTimer(seconds: number): void {
@@ -207,8 +253,23 @@ export class StateManager {
   /**
    * Increment hints used
    */
-  useHint(): void {
-    this.updateState({ hintsUsed: this.state.hintsUsed + 1 }, 'hint:use');
+  useHint(tier: HintTier): void {
+    this.updateState({
+      hintsUsed: this.state.hintsUsed + 1,
+      hintUsage: {
+        tier1: this.state.hintUsage.tier1 + (tier === 1 ? 1 : 0),
+        tier2: this.state.hintUsage.tier2 + (tier === 2 ? 1 : 0),
+        tier3: this.state.hintUsage.tier3 + (tier === 3 ? 1 : 0),
+        tier4: this.state.hintUsage.tier4 + (tier === 4 ? 1 : 0),
+      },
+    }, 'hint:use');
+  }
+
+  /**
+   * Record a committed incorrect value placement for badge and stats tracking.
+   */
+  recordMistake(): void {
+    this.updateState({ mistakeCount: this.state.mistakeCount + 1 }, 'mistake:record');
   }
 
   /**
@@ -265,6 +326,8 @@ export class StateManager {
     status: 'playing' | 'paused' | 'won';
     timer: number;
     hintsUsed: number;
+    hintUsage?: HintUsage;
+    mistakeCount?: number;
   }): void {
     this.state = {
       ...this.state,
@@ -274,6 +337,8 @@ export class StateManager {
       status: session.status,
       timer: session.timer,
       hintsUsed: session.hintsUsed,
+      hintUsage: session.hintUsage ?? createEmptyHintUsage(),
+      mistakeCount: session.mistakeCount ?? 0,
     };
     this.notify();
   }
@@ -327,6 +392,8 @@ export class StateManager {
       ),
       timer: this.state.timer,
       hintsUsed: this.state.hintsUsed,
+      hintUsage: this.state.hintUsage,
+      mistakeCount: this.state.mistakeCount,
       status: this.state.status,
     });
   }

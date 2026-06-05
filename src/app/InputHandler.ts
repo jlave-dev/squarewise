@@ -16,7 +16,7 @@ interface InputCallbacks {
   onEscape?: ActionCallback;
 }
 
-interface InputConfig {
+export interface InputConfig {
   cellSize: number;
   padding: number;
 }
@@ -25,6 +25,22 @@ const DEFAULT_CONFIG: InputConfig = {
   cellSize: 50,
   padding: 20,
 };
+
+export function getCellFromPoint(
+  x: number,
+  y: number,
+  config: InputConfig,
+  gridSize: number
+): Cell | null {
+  const col = Math.floor((x - config.padding) / config.cellSize);
+  const row = Math.floor((y - config.padding) / config.cellSize);
+
+  if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+    return { row, col };
+  }
+
+  return null;
+}
 
 export class InputHandler {
   private canvas: HTMLCanvasElement;
@@ -97,24 +113,24 @@ export class InputHandler {
   };
 
   private handlePointInput(x: number, y: number): void {
-    // Calculate cell from point using configured padding and cell size
-    const padding = this.config.padding;
-    const cellSize = this.config.cellSize;
+    const cell = getCellFromPoint(x, y, this.config, this.gridSize);
 
-    const col = Math.floor((x - padding) / cellSize);
-    const row = Math.floor((y - padding) / cellSize);
-
-    if (row >= 0 && row < this.gridSize && col >= 0 && col < this.gridSize) {
-      this.selectedCell = { row, col };
+    if (cell) {
+      this.selectedCell = cell;
       this.callbacks.onCellSelect?.(this.selectedCell);
     }
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
+    if (this.shouldIgnoreGlobalKeyDown(e)) {
+      return;
+    }
+
     // Number keys 1-9
     if (e.key >= '1' && e.key <= '9') {
       const value = parseInt(e.key, 10);
       if (value <= this.gridSize) {
+        e.preventDefault();
         this.callbacks.onNumberInput?.(value);
       }
       return;
@@ -131,11 +147,13 @@ export class InputHandler {
     switch (e.key) {
       case 'Delete':
       case 'Backspace':
+        e.preventDefault();
         this.callbacks.onClear?.();
         break;
       case 'z':
       case 'Z':
         if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
           if (e.shiftKey) {
             this.callbacks.onRedo?.();
           } else {
@@ -146,20 +164,24 @@ export class InputHandler {
       case 'y':
       case 'Y':
         if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
           this.callbacks.onRedo?.();
         }
         break;
       case 'n':
       case 'N':
+        e.preventDefault();
         this.callbacks.onToggleNotes?.();
         break;
       case 'h':
       case 'H':
+        e.preventDefault();
         this.callbacks.onHint?.();
         break;
       case 'p':
       case 'P':
       case 'Escape':
+        e.preventDefault();
         this.callbacks.onPause?.();
         this.callbacks.onEscape?.();
         break;
@@ -188,6 +210,33 @@ export class InputHandler {
 
     this.selectedCell = { row, col };
     this.callbacks.onCellSelect?.(this.selectedCell);
+  }
+
+  private shouldIgnoreGlobalKeyDown(event: KeyboardEvent): boolean {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    if (target.closest('.accessible-board')) {
+      return false;
+    }
+
+    if (target.closest('.modal-overlay')) {
+      return true;
+    }
+
+    return Boolean(target.closest([
+      'input',
+      'textarea',
+      'select',
+      'button',
+      '[contenteditable="true"]',
+      '[role="button"]',
+      '[role="switch"]',
+      '[role="checkbox"]',
+      '[role="textbox"]',
+    ].join(',')));
   }
 
   /**

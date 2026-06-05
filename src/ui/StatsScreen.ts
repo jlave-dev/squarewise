@@ -60,6 +60,12 @@ export class StatsScreen {
     // Difficulty table
     container.appendChild(this.createDifficultyTable(stats));
 
+    const dailySection = this.createDailySection(stats);
+    if (dailySection) {
+      container.appendChild(this.createDivider());
+      container.appendChild(dailySection);
+    }
+
     return container;
   }
 
@@ -231,6 +237,64 @@ export class StatsScreen {
     const d = document.createElement('div');
     d.style.cssText = `height: 1px; background: var(--grid-line); margin: 4px 0 16px;`;
     return d;
+  }
+
+  private createDailySection(stats: Readonly<PlayerStats>): HTMLElement | null {
+    const completions = Object.values(stats.dailyCompletions)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 7);
+
+    if (completions.length === 0) return null;
+
+    const section = document.createElement('div');
+    section.className = 'daily-stats-section';
+
+    const title = document.createElement('div');
+    title.textContent = 'Recent daily';
+    title.style.cssText = `
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    `;
+    section.appendChild(title);
+
+    for (const completion of completions) {
+      const row = document.createElement('div');
+      row.style.cssText = `
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--grid-line);
+      `;
+
+      const left = document.createElement('div');
+      left.textContent = `${completion.date} - ${completion.difficulty}`;
+      left.style.cssText = `color: var(--text-primary); font-size: 0.88rem;`;
+      row.appendChild(left);
+
+      const right = document.createElement('div');
+      right.textContent = this.formatTime(completion.time);
+      right.style.cssText = `color: var(--text-primary); font-family: var(--font-mono); font-size: 0.88rem;`;
+      row.appendChild(right);
+
+      if (completion.badges.length > 0) {
+        const badges = document.createElement('div');
+        badges.style.cssText = `
+          grid-column: 1 / -1;
+          color: var(--text-secondary);
+          font-size: 0.76rem;
+        `;
+        badges.textContent = completion.badges.join(', ');
+        row.appendChild(badges);
+      }
+
+      section.appendChild(row);
+    }
+
+    return section;
   }
 
   private formatTime(seconds: number): string {

@@ -157,3 +157,8 @@ export function lerp(start: number, end: number, t: number): number {
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+export function prefersReducedMotion(win: Pick<Window, 'matchMedia'> | undefined = globalThis.window): boolean {
+  if (!win?.matchMedia) return false;
+  return win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}

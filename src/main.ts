@@ -4,26 +4,38 @@
  */
 
 import './styles/main.css';
-import { Game } from './app/Game';
+import { Game, type GameSnapshot } from './app/Game';
 import { LevelSelect } from './ui/LevelSelect';
 import { SettingsPanel } from './ui/SettingsPanel';
 import { StatsScreen } from './ui/StatsScreen';
 import { WinScreen } from './ui/WinScreen';
 import { UIRenderer } from './renderer/UIRenderer';
 import { NumberPad } from './ui/NumberPad';
+import { AccessibleBoard } from './ui/AccessibleBoard';
 import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
+import { clearActiveGame } from './storage/ActiveGameStore';
 import { dailyChallenge } from './core/DailyChallenge';
 import { buildWinSharePayload } from './app/share/SharePayload';
 import { ShareService } from './app/share/ShareService';
 import { generatePuzzle } from './engine/generator/PuzzleGenerator';
 import { getDifficultyPreset } from './engine/difficulty/presets';
 import {
+  TutorialController,
+  type TutorialStepId,
+} from './tutorial/TutorialController';
+import { createTutorialPuzzle } from './tutorial/TutorialPuzzle';
+import {
+  markTutorialCompleted,
+  markTutorialSkipped,
+  shouldAutoStartTutorial,
+} from './storage/TutorialStore';
+import {
   getInputCapabilities,
   shouldShowOnScreenKeypadByDefault,
 } from './utils/inputCapabilities';
 import type { Difficulty } from './types/puzzle';
-import type { UserSettings } from './types/game';
+import type { HintTier, UserSettings } from './types/game';
 import type { WinStats } from './ui/WinScreen';
 import {
   buildDebugScenarioQuery,
@@ -43,10 +55,12 @@ class SquareWiseApp {
   private winScreen: WinScreen;
   private uiRenderer: UIRenderer;
   private numberPad: NumberPad;
+  private accessibleBoard: AccessibleBoard;
   private numberPadDesktopLikeMode: boolean | null = null;
   private themeRefreshFrameId: number | null = null;
   private shareService: ShareService;
   private debugPanelEl: HTMLDivElement | null = null;
+  private tutorialController: TutorialController;
 
   constructor() {
     this.canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -64,10 +78,25 @@ class SquareWiseApp {
     this.winScreen = new WinScreen();
     this.uiRenderer = new UIRenderer();
     this.shareService = new ShareService();
+    this.tutorialController = new TutorialController({
+      onComplete: () => {
+        markTutorialCompleted();
+        clearActiveGame();
+        this.levelSelect.show();
+      },
+      onSkip: () => {
+        markTutorialSkipped();
+        clearActiveGame();
+        this.levelSelect.show();
+      },
+    });
     this.numberPad = new NumberPad({
       onNumber: (value) => this.handleNumberInput(value),
       onClear: () => this.handleClear(),
       onToggleNotes: () => this.toggleNotesMode(),
+    });
+    this.accessibleBoard = new AccessibleBoard({
+      onSelectCell: (cell) => this.game?.selectCell(cell),
     });
 
     this.setupApp();
@@ -96,7 +125,9 @@ class SquareWiseApp {
     // Mount UI elements
     const appContainer = document.getElementById('app') || document.body;
     appContainer.appendChild(this.uiRenderer.getElement());
+    this.accessibleBoard.mount(appContainer);
     this.numberPad.mount(appContainer);
+    this.tutorialController.mount(appContainer);
     this.applyNumberPadVisibilityMode();
     console.log('[SquareWise] UI elements mounted');
 
@@ -104,6 +135,7 @@ class SquareWiseApp {
     this.game = new Game(this.canvas, {
       onWin: (stats) => this.handleWin(stats),
       onTimerUpdate: (elapsed) => this.uiRenderer.updateTimer(this.formatElapsedTime(elapsed)),
+      onStateChange: (snapshot) => this.handleGameStateChange(snapshot),
     });
     console.log('[SquareWise] Game initialized');
     this.game.applySettings(settingsStore.getSettings());
@@ -124,6 +156,9 @@ class SquareWiseApp {
         difficulty: debugScenario.difficulty,
         timer: debugScenario.timer,
         hints: debugScenario.hints,
+        date: debugScenario.date,
+        tier: debugScenario.tier,
+        step: debugScenario.step,
       });
       return;
     }
@@ -133,6 +168,11 @@ class SquareWiseApp {
       const gridSize = this.game.getGridSize();
       this.numberPad.setGridSize(gridSize);
       console.log('[SquareWise] Resumed active game with grid size:', gridSize);
+      return;
+    }
+
+    if (shouldAutoStartTutorial()) {
+      this.startTutorial('intro');
       return;
     }
 
@@ -147,6 +187,7 @@ class SquareWiseApp {
     this.uiRenderer.onUndo = () => this.game?.['undo']();
     this.uiRenderer.onRedo = () => this.game?.['redo']();
     this.uiRenderer.onHint = () => this.game?.['showHint']();
+    this.uiRenderer.onHintTier = (tier) => this.game?.['showHint'](tier);
     this.uiRenderer.onPause = () => this.game?.['togglePause']();
     this.uiRenderer.onSettings = () => this.settingsPanel.toggle();
     this.uiRenderer.onStats = () => this.statsScreen.show();
@@ -159,6 +200,14 @@ class SquareWiseApp {
 
     this.levelSelect.setOnDailyChallenge(() => {
       this.startDailyChallenge();
+    });
+
+    this.levelSelect.setOnTutorial(() => {
+      this.startTutorial('intro');
+    });
+
+    this.levelSelect.setOnArchiveChallenge((date, difficulty) => {
+      void this.startArchiveChallenge(date, difficulty);
     });
 
     // Win screen callbacks
@@ -202,6 +251,26 @@ class SquareWiseApp {
     // Update number pad based on puzzle size
     this.numberPad.setGridSize(puzzle.size);
     console.log('[SquareWise] Daily challenge started with grid size:', puzzle.size);
+  }
+
+  private async startArchiveChallenge(date: string, difficulty: Difficulty): Promise<void> {
+    console.log('[SquareWise] Starting archive challenge:', date, difficulty);
+    if (!this.game) return;
+
+    const puzzle = await dailyChallenge.getArchivePuzzleForDate(new Date(`${date}T00:00:00`), difficulty);
+    this.game.loadPuzzle(puzzle);
+    this.numberPad.setGridSize(puzzle.size);
+  }
+
+  private startTutorial(step: TutorialStepId): void {
+    if (!this.game) return;
+
+    this.winScreen.hide();
+    this.levelSelect.hide();
+    const puzzle = createTutorialPuzzle();
+    this.game.loadPuzzle(puzzle);
+    this.numberPad.setGridSize(puzzle.size);
+    this.tutorialController.start(step);
   }
 
   private handleNumberInput(value: number): void {
@@ -320,6 +389,7 @@ class SquareWiseApp {
 
     const api: SquareWiseDebugApi = {
       listScenarios: () => getDebugScenarioIds(),
+      getSnapshot: () => this.game?.getSnapshot() ?? null,
       runScenario: async (scenario, options) => {
         this.updateDebugScenarioUrl(scenario, options);
         await this.runDebugScenario(scenario, options);
@@ -330,7 +400,15 @@ class SquareWiseApp {
   }
 
   private getStartupDebugScenario():
-    | { scenario: DebugScenarioId; difficulty: Difficulty; timer: number; hints: number }
+    | {
+        scenario: DebugScenarioId;
+        difficulty: Difficulty;
+        timer: number;
+        hints: number;
+        date: string | null;
+        tier: HintTier;
+        step: TutorialStepId;
+      }
     | null {
     const fromSearch = parseDebugScenarioFromSearch(window.location.search);
     if (fromSearch) {
@@ -360,11 +438,21 @@ class SquareWiseApp {
 
   private async runDebugScenario(
     scenario: DebugScenarioId,
-    options: { difficulty?: Difficulty; timer?: number; hints?: number } = {}
+    options: {
+      difficulty?: Difficulty;
+      timer?: number;
+      hints?: number;
+      date?: string | null;
+      tier?: HintTier;
+      step?: TutorialStepId;
+    } = {}
   ): Promise<void> {
     const difficulty = options.difficulty ?? 'medium';
     const timer = options.timer ?? 95;
     const hints = options.hints ?? 0;
+    const date = options.date ?? null;
+    const tier = options.tier ?? 1;
+    const step = options.step ?? 'intro';
 
     if (scenario === 'level-select') {
       this.winScreen.hide();
@@ -372,7 +460,12 @@ class SquareWiseApp {
       return;
     }
 
-    await this.loadDebugPuzzle(difficulty, scenario);
+    if (scenario === 'tutorial-step') {
+      this.startTutorial(step);
+      return;
+    }
+
+    await this.loadDebugPuzzle(difficulty, scenario, date);
     const puzzle = this.game?.getPuzzle();
     if (!this.game || !puzzle) {
       return;
@@ -386,19 +479,40 @@ class SquareWiseApp {
     const sessionKind =
       scenario === 'paused' ? 'paused' :
       scenario === 'almost-won' ? 'almost-won' :
-      scenario === 'in-progress' ? 'in-progress' :
+      scenario === 'notes-mode' ? 'notes-mode' :
+      scenario === 'error-state' ? 'error-state' :
+      scenario === 'in-progress' || scenario === 'daily-in-progress' || scenario === 'archive' || scenario === 'hint-tier' ? 'in-progress' :
       'won';
 
     const session = buildDebugSession(puzzle, sessionKind, { timer, hints });
     this.game.applyDebugSession(session);
 
-    if (scenario === 'won-modal' || scenario === 'won-share-fallback') {
+    if (scenario === 'hint-tier') {
+      this.game['showHint'](tier);
+      this.winScreen.hide();
+      return;
+    }
+
+    if (scenario === 'won-modal' || scenario === 'won-share-fallback' || scenario === 'daily-won') {
+      const identity = this.game.getSnapshot();
       const stats: WinStats = {
         time: timer,
         hintsUsed: hints,
+        hintUsage: {
+          tier1: hints,
+          tier2: 0,
+          tier3: 0,
+          tier4: 0,
+        },
+        mistakes: identity.mistakeCount,
         difficulty,
         gridSize: puzzle.size,
         isNewBest: false,
+        mode: identity.mode,
+        date: identity.date,
+        puzzleId: puzzle.id,
+        badges: identity.mode === 'daily' ? ['no-reveal', 'mistake-free'] : [],
+        dailyStreak: identity.mode === 'daily' ? 1 : null,
       };
       this.winScreen.show(stats);
 
@@ -414,15 +528,22 @@ class SquareWiseApp {
     this.winScreen.hide();
   }
 
-  private async loadDebugPuzzle(difficulty: Difficulty, scenario: DebugScenarioId): Promise<void> {
+  private async loadDebugPuzzle(
+    difficulty: Difficulty,
+    scenario: DebugScenarioId,
+    date: string | null = null
+  ): Promise<void> {
     if (!this.game) return;
 
-    const preset = getDifficultyPreset(difficulty);
-    const puzzle = await generatePuzzle({
-      size: preset.gridSize,
-      difficulty,
-      seed: `debug-${scenario}-${difficulty}`,
-    });
+    const puzzle = scenario === 'archive'
+      ? await dailyChallenge.getArchivePuzzleForDate(date ? new Date(`${date}T00:00:00`) : new Date(), difficulty)
+      : scenario === 'daily-in-progress' || scenario === 'daily-won'
+      ? await dailyChallenge.getPuzzleForDate(date ? new Date(`${date}T00:00:00`) : new Date(), difficulty)
+      : await generatePuzzle({
+          size: getDifficultyPreset(difficulty).gridSize,
+          difficulty,
+          seed: `debug-${scenario}-${difficulty}`,
+        });
 
     this.game.loadPuzzle(puzzle);
     this.numberPad.setGridSize(puzzle.size);
@@ -473,11 +594,66 @@ class SquareWiseApp {
 
   private updateDebugScenarioUrl(
     scenario: DebugScenarioId,
-    options: { difficulty?: Difficulty; timer?: number; hints?: number } = {}
+    options: { difficulty?: Difficulty; timer?: number; hints?: number; date?: string | null; tier?: HintTier } = {}
   ): void {
     const url = new URL(window.location.href);
     url.search = buildDebugScenarioQuery(scenario, options);
     window.history.replaceState({}, '', url.toString());
+  }
+
+  private handleGameStateChange(snapshot: GameSnapshot): void {
+    this.uiRenderer.updateGameHeader({
+      mode: snapshot.mode,
+      date: snapshot.date,
+      difficulty: snapshot.difficulty,
+      gridSize: snapshot.gridSize,
+      puzzleId: snapshot.puzzleId,
+      status: snapshot.status,
+    });
+    this.uiRenderer.updateHintStep(snapshot.lastHint);
+    this.numberPad.setNotesMode(snapshot.notesMode);
+    this.numberPad.highlightNumber(snapshot.renderState.selectedNumber);
+    this.accessibleBoard.update(snapshot);
+    this.tutorialController.observe(snapshot);
+    this.updateStateProbe(snapshot);
+  }
+
+  private updateStateProbe(snapshot: GameSnapshot): void {
+    const shouldExpose =
+      import.meta.env.DEV ||
+      new URLSearchParams(window.location.search).has('scenario');
+    if (!shouldExpose) return;
+
+    let probe = document.getElementById('sw-state-probe');
+    if (!probe) {
+      probe = document.createElement('div');
+      probe.id = 'sw-state-probe';
+      probe.hidden = true;
+      probe.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(probe);
+    }
+
+    const selectedValue = snapshot.selectedCell
+      ? snapshot.grid[snapshot.selectedCell.row][snapshot.selectedCell.col]
+      : null;
+    probe.dataset.status = snapshot.status;
+    probe.dataset.puzzleId = snapshot.puzzleId;
+    probe.dataset.hintsUsed = String(snapshot.hintsUsed);
+    probe.dataset.mistakes = String(snapshot.mistakeCount);
+    probe.dataset.notesMode = String(snapshot.notesMode);
+    probe.dataset.hintTier = snapshot.lastHint ? String(snapshot.lastHint.tier) : '';
+    probe.dataset.hintReveal = snapshot.lastHint ? String(snapshot.lastHint.reveal) : '';
+    probe.dataset.hintTier1 = String(snapshot.hintUsage.tier1);
+    probe.dataset.hintTier2 = String(snapshot.hintUsage.tier2);
+    probe.dataset.hintTier3 = String(snapshot.hintUsage.tier3);
+    probe.dataset.hintTier4 = String(snapshot.hintUsage.tier4);
+    probe.dataset.filled = String(snapshot.grid.flat().filter((value) => value !== 0).length);
+    probe.dataset.difficulty = snapshot.difficulty;
+    probe.dataset.size = String(snapshot.gridSize);
+    probe.dataset.selectedRow = snapshot.selectedCell ? String(snapshot.selectedCell.row) : '';
+    probe.dataset.selectedCol = snapshot.selectedCell ? String(snapshot.selectedCell.col) : '';
+    probe.dataset.selectedValue = selectedValue === null ? '' : String(selectedValue);
+    probe.dataset.mode = snapshot.mode;
   }
 }
 

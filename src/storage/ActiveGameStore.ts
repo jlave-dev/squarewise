@@ -1,5 +1,5 @@
 import type { Cell, Puzzle } from '../types/puzzle';
-import type { GameStatus } from '../types/game';
+import type { GameStatus, HintUsage } from '../types/game';
 
 const ACTIVE_GAME_KEY = 'squarewise.activeGame.v1';
 
@@ -11,6 +11,8 @@ export interface ActiveGameSnapshot {
   notes: number[][][];
   timer: number;
   hintsUsed: number;
+  hintUsage: HintUsage;
+  mistakeCount: number;
   status: PersistableStatus;
   selectedCell: Cell | null;
   notesMode: boolean;
@@ -23,6 +25,24 @@ const isCell = (value: unknown): value is Cell => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as { row?: unknown; col?: unknown };
   return Number.isInteger(candidate.row) && Number.isInteger(candidate.col);
+};
+
+const createEmptyHintUsage = (): HintUsage => ({
+  tier1: 0,
+  tier2: 0,
+  tier3: 0,
+  tier4: 0,
+});
+
+const isHintUsage = (value: unknown): value is HintUsage => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<HintUsage>;
+  return (
+    isFiniteNumber(candidate.tier1) &&
+    isFiniteNumber(candidate.tier2) &&
+    isFiniteNumber(candidate.tier3) &&
+    isFiniteNumber(candidate.tier4)
+  );
 };
 
 const isGrid = (value: unknown, size: number): value is number[][] => {
@@ -68,6 +88,8 @@ function isActiveGameSnapshot(value: unknown): value is ActiveGameSnapshot {
       isNotes(candidate.notes, size) &&
       isFiniteNumber(candidate.timer) &&
       isFiniteNumber(candidate.hintsUsed) &&
+      (candidate.hintUsage === undefined || isHintUsage(candidate.hintUsage)) &&
+      (candidate.mistakeCount === undefined || isFiniteNumber(candidate.mistakeCount)) &&
       hasValidStatus &&
       hasValidSelectedCell &&
       typeof candidate.notesMode === 'boolean'
@@ -92,6 +114,8 @@ export function loadActiveGame(): ActiveGameSnapshot | null {
       clearActiveGame();
       return null;
     }
+    parsed.hintUsage ??= createEmptyHintUsage();
+    parsed.mistakeCount ??= 0;
     return parsed;
   } catch (error) {
     console.error('Failed to load active game:', error);

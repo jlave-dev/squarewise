@@ -22,7 +22,7 @@ SquareWise is a browser-based KenKen-style puzzle game built with TypeScript and
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22.14+ or 24.10+
 - npm
 
 ### Install
@@ -55,11 +55,43 @@ npm run preview
 npm test
 ```
 
+### Full Local Verification
+
+```bash
+npm run check
+```
+
 ### Watch Unit Tests
 
 ```bash
 npm run test:watch
 ```
+
+### Run End-to-End Tests
+
+```bash
+npm run test:e2e:install
+npm run test:e2e
+```
+
+To test the production bundle locally, run:
+
+```bash
+npm run test:e2e:ci
+```
+
+## Deployment
+
+Production deploys to GitHub Pages from the `main` branch through `.github/workflows/deploy.yml`.
+
+- Vite builds with `base: '/squarewise/'`, so the app is served at `/squarewise/`.
+- The deploy workflow runs type-checking, unit tests, a production build, and Playwright smoke tests against `vite preview` before uploading `dist`.
+- `public/.nojekyll` keeps GitHub Pages from applying Jekyll processing.
+- `public/manifest.json` and `public/sw.js` are copied into `dist` during the Vite build for PWA install/offline behavior.
+
+Releases are created by `.github/workflows/release.yml` using semantic-release and conventional commits on `main`. Release publishing updates GitHub releases and package metadata only; npm package publishing is disabled.
+
+Pull request titles and pushed commit messages are checked by `.github/workflows/commit-policy.yml`.
 
 ## Controls
 

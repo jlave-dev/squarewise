@@ -8,6 +8,13 @@ interface DailyProgress {
   times: Record<Difficulty, number | null>;
 }
 
+export function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Daily challenge system
  */
@@ -23,14 +30,14 @@ export class DailyChallenge {
    * Get today's date as YYYY-MM-DD string
    */
   getTodayString(): string {
-    return this.currentDate.toISOString().split('T')[0];
+    return formatLocalDate(this.currentDate);
   }
 
   /**
    * Get the seed for a specific date and difficulty
    */
   getSeed(date: Date, difficulty: Difficulty): string {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(date);
     return `daily-${dateStr}-${difficulty}`;
   }
 
@@ -55,6 +62,20 @@ export class DailyChallenge {
     };
 
     return generatePuzzle(config);
+  }
+
+  /**
+   * Generate an archive puzzle for a previous date.
+   * The puzzle content uses the same dated seed as the daily; only identity is relabeled.
+   */
+  async getArchivePuzzleForDate(date: Date, difficulty: Difficulty): Promise<Puzzle> {
+    const puzzle = await this.getPuzzleForDate(date, difficulty);
+    const dateStr = formatLocalDate(date);
+    return {
+      ...puzzle,
+      id: `archive-${dateStr}-${difficulty}-${puzzle.size}x${puzzle.size}`,
+      seed: `archive-${dateStr}-${difficulty}`,
+    };
   }
 
   /**
@@ -99,7 +120,7 @@ export class DailyChallenge {
     let date = new Date(this.currentDate);
 
     while (true) {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(date);
       const progress = this.progress.get(dateStr);
 
       // Check if any puzzle was completed on this day
@@ -125,7 +146,7 @@ export class DailyChallenge {
     const lastDay = new Date(year, month + 1, 0);
 
     for (const [dateStr, progress] of this.progress) {
-      const progressDate = new Date(dateStr);
+      const progressDate = new Date(`${dateStr}T00:00:00`);
       if (progressDate >= firstDay && progressDate <= lastDay) {
         result.set(dateStr, progress);
       }
