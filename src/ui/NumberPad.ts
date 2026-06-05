@@ -60,16 +60,6 @@ export class NumberPad {
   private createContainer(): HTMLDivElement {
     const container = document.createElement('div');
     container.className = 'number-pad';
-    container.style.cssText = `
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
-      gap: 10px;
-      padding: 16px;
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-md);
-      max-width: 350px;
-    `;
     return container;
   }
 
@@ -175,6 +165,7 @@ export class NumberPad {
     this.container.innerHTML = '';
     this.actionsContainer.innerHTML = '';
     this.buttons = [];
+    this.container.style.setProperty('--number-pad-columns', String(this.getPreferredColumnCount()));
 
     for (let i = 1; i <= this.gridSize; i++) {
       const btn = this.createNumberButton(i);
@@ -195,6 +186,14 @@ export class NumberPad {
     this.actionsContainer.appendChild(clearBtn);
 
     this.updateNotesButton();
+  }
+
+  private getPreferredColumnCount(): number {
+    if (this.gridSize <= 6) {
+      return this.gridSize;
+    }
+
+    return Math.ceil(this.gridSize / 2);
   }
 
   private createNumberButton(num: number): HTMLButtonElement {

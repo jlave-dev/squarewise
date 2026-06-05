@@ -58,6 +58,7 @@ class SquareWiseApp {
   private accessibleBoard: AccessibleBoard;
   private numberPadDesktopLikeMode: boolean | null = null;
   private themeRefreshFrameId: number | null = null;
+  private layoutObserver: ResizeObserver | null = null;
   private shareService: ShareService;
   private debugPanelEl: HTMLDivElement | null = null;
   private tutorialController: TutorialController;
@@ -128,6 +129,7 @@ class SquareWiseApp {
     this.accessibleBoard.mount(appContainer);
     this.numberPad.mount(appContainer);
     this.tutorialController.mount(appContainer);
+    this.setupResponsiveLayoutObservers();
     this.applyNumberPadVisibilityMode();
     console.log('[SquareWise] UI elements mounted');
 
@@ -329,8 +331,33 @@ class SquareWiseApp {
    * The canvas size is controlled by CanvasRenderer based on grid size
    */
   private handleResize(): void {
+    this.syncViewportChromeOffsets();
     this.centerCanvas();
     this.applyNumberPadVisibilityMode();
+  }
+
+  private setupResponsiveLayoutObservers(): void {
+    this.syncViewportChromeOffsets();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    this.layoutObserver?.disconnect();
+    this.layoutObserver = new ResizeObserver(() => this.syncViewportChromeOffsets());
+    this.layoutObserver.observe(this.uiRenderer.getElement());
+    this.layoutObserver.observe(this.numberPad.getElement());
+  }
+
+  private syncViewportChromeOffsets(): void {
+    const rootStyle = document.documentElement.style;
+    const headerRect = this.uiRenderer.getElement().getBoundingClientRect();
+    const keypadRect = this.numberPad.getElement().getBoundingClientRect();
+    const headerReserve = Math.max(24, Math.ceil(headerRect.bottom + 20));
+    const keypadReserve = Math.max(24, Math.ceil(window.innerHeight - keypadRect.top + 20));
+
+    rootStyle.setProperty('--ui-top-offset', `${headerReserve}px`);
+    rootStyle.setProperty('--ui-bottom-offset', `${keypadReserve}px`);
   }
 
   private applyNumberPadVisibilityMode(): void {

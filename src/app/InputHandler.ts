@@ -113,12 +113,26 @@ export class InputHandler {
   };
 
   private handlePointInput(x: number, y: number): void {
-    const cell = getCellFromPoint(x, y, this.config, this.gridSize);
+    const scaledPoint = this.scalePointToLogicalBoard(x, y);
+    const cell = getCellFromPoint(scaledPoint.x, scaledPoint.y, this.config, this.gridSize);
 
     if (cell) {
       this.selectedCell = cell;
       this.callbacks.onCellSelect?.(this.selectedCell);
     }
+  }
+
+  private scalePointToLogicalBoard(x: number, y: number): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    const logicalBoardSize = this.gridSize * this.config.cellSize + this.config.padding * 2;
+    if (rect.width === 0 || rect.height === 0 || logicalBoardSize === 0) {
+      return { x, y };
+    }
+
+    return {
+      x: x * (logicalBoardSize / rect.width),
+      y: y * (logicalBoardSize / rect.height),
+    };
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {

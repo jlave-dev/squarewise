@@ -24,6 +24,7 @@ export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
   private config: RendererConfig;
   private dpr: number;
+  private logicalCanvasSize = 0;
   private puzzle: Puzzle | null = null;
   private grid: number[][] | null = null;
   private notes: NotesGrid | null = null;
@@ -41,31 +42,29 @@ export class CanvasRenderer {
     this.ctx = ctx;
     this.resizeHandler = () => this.handleResize();
 
-    this.setupCanvas();
     window.addEventListener('resize', this.resizeHandler);
   }
 
-  private setupCanvas(): void {
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
-
-    // Skip if canvas has no size yet
-    if (width === 0 || height === 0) {
-      console.log('[CanvasRenderer] Skipping setupCanvas - zero size:', width, 'x', height);
+  private syncCanvasSize(): void {
+    if (this.logicalCanvasSize === 0) {
       return;
     }
 
-    this.canvas.width = width * this.dpr;
-    this.canvas.height = height * this.dpr;
+    this.dpr = window.devicePixelRatio || 1;
+    this.canvas.style.setProperty('--board-ideal-size', `${this.logicalCanvasSize}px`);
+    this.canvas.style.width = `min(${this.logicalCanvasSize}px, var(--board-max-size, ${this.logicalCanvasSize}px))`;
+    this.canvas.style.height = `min(${this.logicalCanvasSize}px, var(--board-max-size, ${this.logicalCanvasSize}px))`;
+    this.canvas.width = this.logicalCanvasSize * this.dpr;
+    this.canvas.height = this.logicalCanvasSize * this.dpr;
 
     // Reset transformation before scaling to avoid cumulative scaling
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(this.dpr, this.dpr);
-    console.log('[CanvasRenderer] Canvas setup complete:', width, 'x', height, 'DPR:', this.dpr);
+    console.log('[CanvasRenderer] Canvas setup complete:', this.logicalCanvasSize, 'x', this.logicalCanvasSize, 'DPR:', this.dpr);
   }
 
   private handleResize(): void {
-    this.setupCanvas();
+    this.syncCanvasSize();
     if (this.puzzle && this.grid && this.notes) {
       this.render(this.puzzle, this.grid, this.notes, this.renderState);
     }
@@ -96,21 +95,9 @@ export class CanvasRenderer {
     if (!this.puzzle) return;
 
     const gridSize = this.puzzle.size * this.config.cellSize;
-    const totalSize = gridSize + this.config.padding * 2;
-
-    // Set CSS size
-    this.canvas.style.width = `${totalSize}px`;
-    this.canvas.style.height = `${totalSize}px`;
-
-    // Set internal canvas size directly (don't rely on clientWidth/clientHeight)
-    this.canvas.width = totalSize * this.dpr;
-    this.canvas.height = totalSize * this.dpr;
-
-    // Reset and set scale
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.scale(this.dpr, this.dpr);
-
-    console.log('[CanvasRenderer] Canvas adjusted to:', totalSize, 'x', totalSize, 'internal:', this.canvas.width, 'x', this.canvas.height);
+    this.logicalCanvasSize = gridSize + this.config.padding * 2;
+    this.syncCanvasSize();
+    console.log('[CanvasRenderer] Canvas adjusted to:', this.logicalCanvasSize, 'x', this.logicalCanvasSize, 'internal:', this.canvas.width, 'x', this.canvas.height);
   }
 
   /**
@@ -219,7 +206,7 @@ export class CanvasRenderer {
   private drawBackground(): void {
     this.ctx.fillStyle = getComputedStyle(document.documentElement)
       .getPropertyValue('--bg-grid').trim() || '#FFFFFF';
-    this.ctx.fillRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+    this.ctx.fillRect(0, 0, this.logicalCanvasSize, this.logicalCanvasSize);
   }
 
   /**
