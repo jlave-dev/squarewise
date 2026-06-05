@@ -14,20 +14,9 @@ module.exports = {
         preset: "conventionalcommits",
       },
     ],
-    [
-      "@semantic-release/npm",
-      {
-        npmPublish: false,
-      },
-    ],
+    // GitHub branch protection requires PR-only changes on main, so releases
+    // must tag and publish from the merged commit instead of pushing version
+    // bump commits back to the repository.
     "@semantic-release/github",
-    [
-      "@semantic-release/git",
-      {
-        assets: ["package.json", "package-lock.json"],
-        message:
-          "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
-      },
-    ],
   ],
 };
