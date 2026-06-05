@@ -10,6 +10,14 @@ async function expectNoConsoleProblems(consoleProblems: string[]): Promise<void>
   expect(consoleProblems, consoleProblems.join('\n')).toEqual([]);
 }
 
+const MOBILE_LAYOUT_CASES = [
+  { difficulty: 'beginner', gridSize: 4 },
+  { difficulty: 'easy', gridSize: 5 },
+  { difficulty: 'medium', gridSize: 6 },
+  { difficulty: 'hard', gridSize: 7 },
+  { difficulty: 'expert', gridSize: 9 },
+] as const;
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.clear();
@@ -227,4 +235,73 @@ test('reduced motion suppresses win confetti', async ({ page }) => {
   await expect(page.locator('#confetti-style')).toHaveCount(0);
 
   await expectNoConsoleProblems(consoleProblems);
+});
+
+test.describe('mobile layout', () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  for (const { difficulty, gridSize } of MOBILE_LAYOUT_CASES) {
+    test(`${difficulty} board stays fully visible above the keypad and touch input still works`, async ({ page }) => {
+      const consoleProblems: string[] = [];
+      page.on('console', (message) => {
+        if (message.type() === 'error' || message.type() === 'warning') {
+          consoleProblems.push(message.text());
+        }
+      });
+
+      await page.goto(`?scenario=in-progress&difficulty=${difficulty}`);
+
+      await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-size', String(gridSize));
+      await expect(page.locator('.number-pad')).toBeVisible();
+      await expect(page.locator('.number-pad-actions')).toBeVisible();
+      await expect(page.locator('.number-btn')).toHaveCount(gridSize);
+      await expect(page.getByRole('button', { name: '1' })).toHaveCount(1);
+
+      const layout = await page.evaluate(() => {
+        const canvas = document.querySelector('canvas');
+        const header = document.querySelector('.ui-container');
+        const keypad = document.querySelector('.number-pad-shell');
+
+        if (!canvas || !header || !keypad) {
+          return null;
+        }
+
+        const canvasRect = canvas.getBoundingClientRect();
+        const headerRect = header.getBoundingClientRect();
+        const keypadRect = keypad.getBoundingClientRect();
+
+        return {
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          canvas: {
+            left: canvasRect.left,
+            top: canvasRect.top,
+            right: canvasRect.right,
+            bottom: canvasRect.bottom,
+            width: canvasRect.width,
+            height: canvasRect.height,
+          },
+          headerBottom: headerRect.bottom,
+          keypadTop: keypadRect.top,
+          keypadBottom: keypadRect.bottom,
+        };
+      });
+
+      expect(layout).not.toBeNull();
+      expect(layout!.canvas.left).toBeGreaterThanOrEqual(0);
+      expect(layout!.canvas.right).toBeLessThanOrEqual(layout!.viewportWidth);
+      expect(layout!.canvas.top).toBeGreaterThanOrEqual(layout!.headerBottom);
+      expect(layout!.canvas.bottom).toBeLessThanOrEqual(layout!.keypadTop);
+      expect(layout!.keypadBottom).toBeLessThanOrEqual(layout!.viewportHeight);
+      expect(Math.abs(layout!.canvas.width - layout!.canvas.height)).toBeLessThanOrEqual(1);
+
+      await page.getByRole('button', { name: '1' }).click();
+      await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-value', '1');
+      await expectNoConsoleProblems(consoleProblems);
+    });
+  }
 });
