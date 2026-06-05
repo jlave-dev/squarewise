@@ -30,10 +30,6 @@ import {
   markTutorialSkipped,
   shouldAutoStartTutorial,
 } from './storage/TutorialStore';
-import {
-  getInputCapabilities,
-  shouldShowOnScreenKeypadByDefault,
-} from './utils/inputCapabilities';
 import type { Difficulty } from './types/puzzle';
 import type { HintTier, UserSettings } from './types/game';
 import type { WinStats } from './ui/WinScreen';
@@ -351,6 +347,13 @@ class SquareWiseApp {
 
   private syncViewportChromeOffsets(): void {
     const rootStyle = document.documentElement.style;
+
+    if (window.matchMedia('(min-width: 900px) and (hover: hover)').matches) {
+      rootStyle.setProperty('--ui-top-offset', '0px');
+      rootStyle.setProperty('--ui-bottom-offset', '0px');
+      return;
+    }
+
     const headerRect = this.uiRenderer.getElement().getBoundingClientRect();
     const keypadRect = this.numberPad.getElement().getBoundingClientRect();
     const headerReserve = Math.max(24, Math.ceil(headerRect.bottom + 20));
@@ -361,9 +364,7 @@ class SquareWiseApp {
   }
 
   private applyNumberPadVisibilityMode(): void {
-    const capabilities = getInputCapabilities();
-    const showByDefault = shouldShowOnScreenKeypadByDefault(capabilities);
-    const desktopLike = !showByDefault;
+    const desktopLike = false;
 
     if (this.numberPadDesktopLikeMode === desktopLike) {
       return;
@@ -371,7 +372,7 @@ class SquareWiseApp {
 
     this.numberPadDesktopLikeMode = desktopLike;
     this.numberPad.setCollapsible(desktopLike);
-    this.numberPad.setVisible(showByDefault);
+    this.numberPad.setVisible(true);
   }
 
   /**
@@ -577,6 +578,10 @@ class SquareWiseApp {
   }
 
   private mountDebugPanel(): void {
+    if (new URLSearchParams(window.location.search).get('debugPanel') !== '1') {
+      return;
+    }
+
     if (this.debugPanelEl) {
       return;
     }

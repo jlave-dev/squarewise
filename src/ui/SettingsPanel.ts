@@ -113,17 +113,10 @@ export class SettingsPanel {
   private createSettingItem(label: string, control: HTMLElement): HTMLElement {
     const item = document.createElement('div');
     item.className = 'setting-item';
-    item.style.cssText = `
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--grid-line);
-    `;
 
     const labelEl = document.createElement('span');
     labelEl.textContent = label;
-    labelEl.style.cssText = `color: var(--text-primary);`;
+    labelEl.className = 'setting-label';
 
     item.appendChild(labelEl);
     item.appendChild(control);
@@ -133,14 +126,7 @@ export class SettingsPanel {
 
   private createThemeSelector(): HTMLElement {
     const select = document.createElement('select');
-    select.style.cssText = `
-      padding: 8px 12px;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--grid-line);
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      font-size: 1rem;
-    `;
+    select.className = 'setting-select';
 
     const options = [
       { value: 'light', label: 'Light' },
@@ -172,37 +158,15 @@ export class SettingsPanel {
   }
 
   private createToggle(key: ToggleSettingKey, initialValue: boolean): HTMLElement {
-    const toggle = document.createElement('div');
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
     toggle.className = `toggle ${initialValue ? 'active' : ''}`;
-    toggle.style.cssText = `
-      position: relative;
-      width: 48px;
-      height: 28px;
-      background: ${initialValue ? 'var(--accent)' : 'var(--grid-line)'};
-      border-radius: 14px;
-      cursor: pointer;
-      transition: background 0.2s ease;
-    `;
-
-    const knob = document.createElement('div');
-    knob.style.cssText = `
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 24px;
-      height: 24px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.2s ease;
-      transform: translateX(${initialValue ? '20px' : '0'});
-    `;
-    toggle.appendChild(knob);
+    toggle.setAttribute('aria-pressed', String(initialValue));
 
     toggle.addEventListener('click', async () => {
       const newValue = !toggle.classList.contains('active');
       toggle.classList.toggle('active');
-      toggle.style.background = newValue ? 'var(--accent)' : 'var(--grid-line)';
-      knob.style.transform = `translateX(${newValue ? '20px' : '0'})`;
+      toggle.setAttribute('aria-pressed', String(newValue));
 
       await settingsStore.updateSetting(key, newValue);
       if (this.settings) {

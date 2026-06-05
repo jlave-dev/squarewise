@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   generateCages,
   getAdjacentCells,
+  isCageConnected,
   validateCageCoverage,
 } from '../src/engine/generator/CageGenerator';
 
@@ -15,10 +16,6 @@ function makeDeterministicRng(targetSize = 2) {
       return items[0];
     },
   };
-}
-
-function areOrthogonallyAdjacent(a, b) {
-  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
 }
 
 test('generateCages covers the full grid with non-overlapping cages', () => {
@@ -34,20 +31,13 @@ test('generateCages covers the full grid with non-overlapping cages', () => {
   let totalCells = 0;
   for (const cage of cages) {
     assert.ok(cage.cells.length >= 1 && cage.cells.length <= 2);
+    assert.equal(isCageConnected(cage.cells), true, `cage ${cage.id} is disconnected`);
     totalCells += cage.cells.length;
 
     for (const cell of cage.cells) {
       const key = `${cell.row},${cell.col}`;
       assert.equal(seen.has(key), false);
       seen.add(key);
-    }
-
-    for (let i = 1; i < cage.cells.length; i++) {
-      const cell = cage.cells[i];
-      const hasNeighborInCage = cage.cells
-        .slice(0, i)
-        .some((other) => areOrthogonallyAdjacent(cell, other));
-      assert.equal(hasNeighborInCage, true);
     }
   }
 
@@ -86,9 +76,35 @@ test('validateCageCoverage rejects overlap and missing cells', () => {
       clue: { target: 1, operation: 'none' },
     },
   ];
+  const outOfBounds = [
+    {
+      id: 0,
+      cells: [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+        { row: 1, col: 0 },
+        { row: 1, col: 1 },
+        { row: 2, col: 0 },
+      ],
+      clue: { target: 1, operation: '+' },
+    },
+  ];
 
   assert.equal(validateCageCoverage(overlapping, 2), false);
   assert.equal(validateCageCoverage(missing, 2), false);
+  assert.equal(validateCageCoverage(outOfBounds, 2), false);
+});
+
+test('isCageConnected accepts only orthogonally connected cages', () => {
+  assert.equal(isCageConnected([]), false);
+  assert.equal(isCageConnected([{ row: 0, col: 0 }]), true);
+  assert.equal(isCageConnected([{ row: 0, col: 0 }, { row: 0, col: 1 }]), true);
+  assert.equal(
+    isCageConnected([{ row: 0, col: 0 }, { row: 1, col: 0 }, { row: 1, col: 1 }]),
+    true
+  );
+  assert.equal(isCageConnected([{ row: 0, col: 0 }, { row: 0, col: 2 }]), false);
+  assert.equal(isCageConnected([{ row: 0, col: 0 }, { row: 1, col: 1 }]), false);
 });
 
 test('getAdjacentCells returns in-bounds orthogonal neighbors', () => {

@@ -20,7 +20,8 @@ export function createTutorialPuzzle(): Puzzle {
       { id: 4, cells: [{ row: 1, col: 1 }, { row: 1, col: 2 }], clue: { target: 4, operation: '÷' } },
       { id: 5, cells: [{ row: 2, col: 1 }, { row: 3, col: 1 }], clue: { target: 3, operation: '÷' } },
       { id: 6, cells: [{ row: 2, col: 2 }, { row: 2, col: 3 }], clue: { target: 7, operation: '+' } },
-      { id: 7, cells: [{ row: 3, col: 0 }, { row: 3, col: 2 }, { row: 3, col: 3 }], clue: { target: 7, operation: '+' } },
+      { id: 7, cells: [{ row: 3, col: 0 }], clue: { target: 4, operation: 'none' } },
+      { id: 8, cells: [{ row: 3, col: 2 }, { row: 3, col: 3 }], clue: { target: 3, operation: '+' } },
     ],
   };
 }

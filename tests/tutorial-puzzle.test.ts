@@ -7,7 +7,9 @@ import {
   getTutorialSteps,
   isTutorialStepId,
 } from '../src/tutorial/TutorialController';
+import { isCageConnected } from '../src/engine/generator/CageGenerator';
 import { validateClue } from '../src/engine/generator/ClueCalculator';
+import { validatePuzzle } from '../src/engine/generator/PuzzleGenerator';
 import type { GameSnapshot } from '../src/app/Game';
 
 test('tutorial puzzle is deterministic and covers every cell exactly once', () => {
@@ -21,6 +23,8 @@ test('tutorial puzzle is deterministic and covers every cell exactly once', () =
 
   const covered = new Set<string>();
   for (const cage of puzzle.cages) {
+    assert.equal(isCageConnected(cage.cells), true, `cage ${cage.id} is disconnected`);
+
     for (const cell of cage.cells) {
       const key = `${cell.row},${cell.col}`;
       assert.equal(covered.has(key), false, `duplicate cell ${key}`);
@@ -29,6 +33,10 @@ test('tutorial puzzle is deterministic and covers every cell exactly once', () =
   }
 
   assert.equal(covered.size, 16);
+
+  const validation = validatePuzzle(puzzle);
+  assert.deepEqual(validation.errors, []);
+  assert.equal(validation.valid, true);
 });
 
 test('tutorial cage clues match the tutorial solution', () => {

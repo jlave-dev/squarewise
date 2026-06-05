@@ -1,10 +1,10 @@
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faChartSimple,
+  faCirclePlus,
   faGear,
   faLightbulb,
   faPause,
-  faPlus,
   faRotateLeft,
   faRotateRight,
 } from '@fortawesome/free-solid-svg-icons';
@@ -94,26 +94,13 @@ export class UIRenderer {
     const container = document.createElement('div');
     container.className = 'controls-container';
 
-    // Undo button
-    container.appendChild(this.createButton(faRotateLeft, 'Undo (Ctrl+Z)', () => this.onUndo?.()));
-
-    // Redo button
-    container.appendChild(this.createButton(faRotateRight, 'Redo (Ctrl+Y)', () => this.onRedo?.()));
-
-    // Hint button
-    container.appendChild(this.createButton(faLightbulb, 'Hint (H)', () => this.onHint?.()));
-
-    // Pause button
-    container.appendChild(this.createButton(faPause, 'Pause (P)', () => this.onPause?.()));
-
-    // Stats button
-    container.appendChild(this.createButton(faChartSimple, 'Statistics', () => this.onStats?.()));
-
-    // Settings button
-    container.appendChild(this.createButton(faGear, 'Settings', () => this.onSettings?.()));
-
-    // New Game button
-    container.appendChild(this.createButton(faPlus, 'New Game', () => this.onNewGame?.()));
+    container.appendChild(this.createButton(faRotateLeft, 'Undo', 'Undo (Ctrl+Z)', () => this.onUndo?.()));
+    container.appendChild(this.createButton(faRotateRight, 'Redo', 'Redo (Ctrl+Y)', () => this.onRedo?.()));
+    container.appendChild(this.createButton(faLightbulb, 'Hint', 'Hint (H)', () => this.onHint?.()));
+    container.appendChild(this.createButton(faPause, 'Pause', 'Pause (P)', () => this.onPause?.()));
+    container.appendChild(this.createButton(faChartSimple, 'Stats', 'Statistics', () => this.onStats?.()));
+    container.appendChild(this.createButton(faGear, 'Settings', 'Settings', () => this.onSettings?.()));
+    container.appendChild(this.createButton(faCirclePlus, 'New', 'New Game', () => this.onNewGame?.()));
 
     return container;
   }
@@ -157,22 +144,22 @@ export class UIRenderer {
     return container;
   }
 
-  private createButton(iconDef: IconDefinition, title: string, onClick?: () => void): HTMLButtonElement {
+  private createButton(
+    iconDef: IconDefinition,
+    label: string,
+    title: string,
+    onClick?: () => void
+  ): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'ui-btn';
     btn.appendChild(createIconElement(iconDef));
+    btn.appendChild(Object.assign(document.createElement('span'), {
+      className: 'ui-btn-label',
+      textContent: label,
+    }));
+    btn.dataset.action = label.toLowerCase();
     btn.title = title;
     btn.setAttribute('aria-label', title.replace(/\s*\([^)]*\)/g, ''));
-
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = 'var(--accent)';
-      btn.style.color = 'white';
-    });
-
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'var(--bg-surface)';
-      btn.style.color = 'var(--text-primary)';
-    });
 
     if (onClick) {
       btn.addEventListener('click', onClick);
@@ -213,9 +200,9 @@ export class UIRenderer {
       difficulty,
       `${state.gridSize}x${state.gridSize}`,
       statusLabel,
-    ].filter(Boolean);
+    ].filter((part): part is string => Boolean(part));
 
-    this.metaDisplay.textContent = parts.join(' - ');
+    this.renderMetaChips(parts);
     this.metaDisplay.title = `${parts.join(' - ')} - ${state.puzzleId}`;
   }
 
@@ -274,5 +261,29 @@ export class UIRenderer {
 
   private formatDifficulty(difficulty: Difficulty): string {
     return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  }
+
+  private renderMetaChips(parts: string[]): void {
+    this.metaDisplay.replaceChildren();
+
+    parts.forEach((part, index) => {
+      if (index > 0) {
+        const separator = document.createElement('span');
+        separator.className = 'game-meta-separator';
+        separator.textContent = ' - ';
+        this.metaDisplay.appendChild(separator);
+      }
+
+      const chip = document.createElement('span');
+      chip.className = part === this.formatDifficulty('easy') ||
+        part === this.formatDifficulty('beginner') ||
+        part === this.formatDifficulty('medium') ||
+        part === this.formatDifficulty('hard') ||
+        part === this.formatDifficulty('expert')
+        ? 'game-meta-difficulty'
+        : 'game-meta-item';
+      chip.textContent = part;
+      this.metaDisplay.appendChild(chip);
+    });
   }
 }
