@@ -1,123 +1,93 @@
 # AGENTS.md
 
-Concise guidance for coding agents working in this repository.
+Repository-wide instructions for coding agents working on SquareWise.
 
-## Project Overview
+## Project Context
 
-SquareWise is a KenKen-style daily puzzle game. Stack: vanilla TypeScript + Vite SPA + canvas rendering.
+SquareWise is a vanilla TypeScript + Vite single-page puzzle game served from `/squarewise/`. The UI is canvas-first, with DOM controls and an accessible board mirror for assistive technology and deterministic tests.
+
+Read [`README.md`](README.md) first for current setup, architecture, deployment, and troubleshooting details.
 
 ## Commands
 
-- `npm run dev` - Dev server (`:5173`)
-- `npm run build` - Production build (`dist/`)
-- `npm run preview` - Preview production build
-- `npx tsc --noEmit` - Type-check
+Run commands from the repository root.
+Use Node 22 to match CI.
 
-## Feature Workflow (Actionable)
+```bash
+npm ci               # Install locked dependencies
+npm run dev          # Start Vite on port 5173 at /squarewise/
+npm run typecheck    # TypeScript check
+npm test             # Vitest suite
+npm run build        # Production build into dist/
+npm run check        # typecheck + tests + build
+npm run test:e2e     # Playwright against configured web server
+npm run test:e2e:ci  # build + preview + Playwright against production assets
+```
 
-Use this for all features and bugfixes:
+Install the Playwright browser before the first local E2E run:
 
-1. Define 5-10 acceptance checks; tag each `machine-testable` or `human-judgment`.
-2. Add test observability (especially for canvas): expose test-only state hooks behind a flag.
-3. Test in layers:
-   - Unit: pure logic (generator, validator, difficulty, timer/undo logic)
-   - Integration: input -> state transitions -> renderer interactions
-   - E2E: key flows (new game, settings persistence, win flow)
-4. Verify before completion:
-   - `npx tsc --noEmit`
-   - `npm run build`
-   - relevant tests
-   - deterministic seeds for random behavior
-5. Run brief manual QA for UX quality (readability, touch feel, animation smoothness, visual clarity).
-6. For escaped bugs, add or strengthen automated tests.
+```bash
+npm run test:e2e:install
+```
 
-## AI Testing Practices
+Use `npm install` only when intentionally changing dependencies.
 
-- Use AI to accelerate test authoring/refactoring, not to decide correctness by itself.
-- Pass/fail must come from deterministic assertions (state, DOM, ARIA snapshots, and stable E2E checks), not screenshot interpretation alone.
-- For canvas features, prefer test-mode state hooks over visual-only checks.
-- If using self-healing locators/tools, treat heals as review-required signals; do not silently accept them as valid behavior.
-- Keep screenshot/visual diff tests targeted for layout regressions; avoid using them as primary functional proof.
-- Always keep a brief human QA pass for UX quality (readability, motion smoothness, touch feel, visual clarity).
+## Validation
 
-### Strengths
-- High confidence from behavior-first checks
-- Fast regression detection in CI
-- Matches this logic-first architecture
+- For logic-only changes, run the closest Vitest file plus `npm run typecheck`.
+- For UI, input, tutorial, share, stats, storage, or rendering changes, run `npm run check`.
+- For canvas, keyboard, modal, tutorial, win-screen, deployment, service worker, or base-path changes, also run `npm run test:e2e:ci`.
+- After significant frontend changes, manually smoke test `/squarewise/` in a browser. Prefer deterministic URLs such as `?scenario=in-progress&difficulty=easy` or `?scenario=tutorial-step&step=place-value`.
+- Do not finish with a long-running dev or preview server still active.
 
-### Weaknesses
-- Upfront cost for hooks/harnesses
-- Canvas visuals still need human validation
-- E2E/visual tests can be flaky without deterministic setup
+## Testing and Debug Hooks
 
-## Architecture
+- Prefer deterministic assertions over screenshot interpretation.
+- For canvas behavior, expose or reuse test-only state hooks instead of relying on visual checks alone.
+- URL scenario bootstrapping may run in any mode.
+- Floating debug UI and `window.__SW_DEBUG__` must remain development-only.
+- Keep scenario URLs refresh-safe by updating URL params with `history.replaceState`.
+- Accept flexible scenario URL formats, but normalize to one internal scenario ID.
 
-### Entry Point
-`src/main.ts` - bootstrap + orchestration
+Useful files:
 
-### Core Modules
-- `src/app/Game.ts` - central controller (renderer/input/state/timer/undo)
-- `src/app/StateManager.ts` - puzzle/grid/notes/selection state
-- `src/app/InputHandler.ts` - mouse/touch selection handling
+- [`src/debug/scenarios.ts`](src/debug/scenarios.ts): URL scenarios and fixtures
+- [`src/ui/AccessibleBoard.ts`](src/ui/AccessibleBoard.ts): DOM board mirror
+- [`src/renderer/boardRenderState.ts`](src/renderer/boardRenderState.ts): render-state extraction for tests
+- [`tests/e2e/squarewise.spec.ts`](tests/e2e/squarewise.spec.ts): Playwright coverage
 
-### Rendering
-- `src/renderer/CanvasRenderer.ts` - main canvas render; DPR-aware; config in `DEFAULT_CONFIG`
-- `src/renderer/UIRenderer.ts` - DOM toolbar/buttons
-- `src/renderer/EffectsRenderer.ts` - overlay effects
+## Architecture Notes
 
-### Puzzle Engine
-- `src/engine/generator/PuzzleGenerator.ts` - generation entry
-- `src/engine/generator/LatinSquare.ts` - valid solution grid generation
-- `src/engine/generator/CageGenerator.ts` - cage layout generation
-- `src/engine/generator/ClueCalculator.ts` - clue target/operator calculation
-- `src/engine/validation/Validator.ts` - move/cage validation
-- `src/engine/difficulty/DifficultyEngine.ts` - difficulty scoring
-- `src/engine/difficulty/presets.ts` - difficulty presets
+- Main bootstrap: [`src/main.ts`](src/main.ts)
+- Game controller: [`src/app/Game.ts`](src/app/Game.ts)
+- State manager: [`src/app/StateManager.ts`](src/app/StateManager.ts)
+- Input handler: [`src/app/InputHandler.ts`](src/app/InputHandler.ts)
+- Canvas renderer: [`src/renderer/CanvasRenderer.ts`](src/renderer/CanvasRenderer.ts)
+- Puzzle generation and validation: [`src/engine`](src/engine)
+- Browser persistence: [`src/storage`](src/storage)
+- Tutorial flow: [`src/tutorial`](src/tutorial)
 
-### Data Types
-`src/types/puzzle.ts` defines:
-- `Puzzle` - size/cages/solution
-- `Cage` - constrained cell region
-- `Clue` - target + operation (`+`, `-`, `×`, `÷`)
-- `Difficulty` - 'beginner' | 'easy' | 'medium' | 'hard' | 'expert'
-
-### Storage
-- `src/storage/SettingsStore.ts` - preferences
-- `src/storage/StatsStore.ts` - stats
-- `src/storage/IndexedDB.ts` - persisted game state
-
-### UI Components
-- `src/ui/LevelSelect.ts` - Difficulty selection modal
-- `src/ui/NumberPad.ts` - Touch number input
-- `src/ui/SettingsPanel.ts` - Settings modal
-- `src/ui/WinScreen.ts` - Victory screen
-
-### Daily Challenges
-`src/core/DailyChallenge.ts` - seeded daily puzzle generation
-
-## Key Patterns
-
-- Game state flows: InputHandler → Game → StateManager → CanvasRenderer
-- Puzzle is generated once at game start; solution lives on puzzle object
-- CanvasRenderer handles DPR scaling for crisp rendering
-- Service worker caches assets for offline support
-
-## Gotchas
-
-- Service worker caching can serve old builds; hard refresh (`Cmd+Shift+R`) or unregister SW in DevTools.
-- Canvas size is controlled by `CanvasRenderer.adjustCanvasSize()`; do not override via CSS/JS resize.
-- `InputHandler` config is synced from `CanvasRenderer` at startup; keep them aligned when renderer config changes.
+State generally flows from input handlers to `Game`, through `StateManager`, then into renderers and UI mirrors. The puzzle solution lives on the puzzle object after generation.
 
 ## Behavioral Guardrails
 
 - Programmatic modal hide/close flows must not trigger user-facing close callbacks unless the modal is currently open.
-- Keep app-state harnesses URL-driven and refresh-safe: selecting a scenario should update URL params via `history.replaceState`.
-- Accept flexible scenario URL formats (`scenario/state` keys, normalized values), but parse to one canonical scenario ID internally.
-- Environment split for harnesses:
-  - URL scenario bootstrapping may run in any mode.
-  - Floating debug UI and global debug bridge (`window.__SW_DEBUG__`) must be dev-only.
-- Share behavior contract:
-  - Use native Web Share first when available.
-  - Treat user-cancel (`AbortError`) as non-error.
-  - Provide fallback actions (social intent + copy action) when native share is unavailable.
-- Key shortcut hints should be context-aware; hide keyboard shortcut hint text while the on-screen keypad is expanded.
+- Keep `InputHandler` board geometry aligned with `CanvasRenderer`; canvas sizing is owned by `CanvasRenderer.adjustCanvasSize()`.
+- Native Web Share should be tried first when available. Treat user-cancel `AbortError` as a non-error.
+- Provide fallback share actions when native share is unavailable.
+- Hide keyboard shortcut hint text while the on-screen keypad is expanded.
+- Service worker and Vite base-path changes must be checked against production preview because GitHub Pages serves the app from `/squarewise/`.
+
+## Repository Boundaries
+
+- Do not edit `dist/`; it is generated build output.
+- Keep generated logo exploration under `outputs/logos/` and generated screenshots under `outputs/screenshots/`.
+- Do not introduce new runtime dependencies unless the app genuinely needs them; this repo is intentionally vanilla TypeScript.
+- Do not put secrets or environment-specific credentials in the repo. No `.env` file is required for normal development.
+
+## Git and Release Workflow
+
+- Use conventional commit messages and conventional PR titles.
+- PR titles are checked on pull request events by [`.github/workflows/commit-policy.yml`](.github/workflows/commit-policy.yml). Pushed commit messages are checked on pushes to `main`; keep branch commits conventional so release behavior is predictable.
+- GitHub Pages deploys from `main` through [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+- semantic-release creates GitHub releases from `main`; npm publishing is disabled in [`release.config.cjs`](release.config.cjs).
