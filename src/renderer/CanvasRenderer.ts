@@ -276,16 +276,10 @@ export class CanvasRenderer {
 
     const cageColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--cell-selected-cage').trim() || 'rgba(20, 184, 166, 0.12)';
-    const matchColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--cell-same-number').trim() || 'rgba(245, 158, 11, 0.16)';
-    const noteMatchColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--cell-note-match').trim() || 'rgba(245, 158, 11, 0.09)';
     const notesModeColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--notes-mode-accent').trim() || 'rgba(20, 184, 166, 0.22)';
 
     this.fillCells(this.renderState.selectedCageCells, cageColor);
-    this.fillCells(this.renderState.matchingNoteCells, noteMatchColor);
-    this.fillCells(this.renderState.matchingValueCells, matchColor);
 
     if (this.renderState.notesMode) {
       const { originX, originY } = this.getOrigin();
@@ -516,8 +510,6 @@ export class CanvasRenderer {
 
     const noteColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--text-secondary').trim() || '#64748B';
-    const highlightedNoteColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--note-highlight').trim() || '#B45309';
     const noteSize = Math.max(12, Math.floor(this.config.cellSize * 0.18));
 
     this.ctx.font = this.getCanvasFont(noteSize, 700);
@@ -538,8 +530,7 @@ export class CanvasRenderer {
           if (!anchor) continue;
           const noteX = x + this.config.cellSize * anchor.xFactor;
           const noteY = y + this.config.cellSize * anchor.yFactor;
-          this.ctx.fillStyle =
-            note === this.renderState.selectedNumber ? highlightedNoteColor : noteColor;
+          this.ctx.fillStyle = noteColor;
           this.ctx.fillText(String(note), noteX, noteY);
         }
       }

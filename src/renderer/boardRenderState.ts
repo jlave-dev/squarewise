@@ -54,7 +54,6 @@ export function buildBoardRenderState(options: {
   const {
     puzzle,
     grid,
-    notes,
     selectedCell,
     errors,
     notesMode,
@@ -88,22 +87,6 @@ export function buildBoardRenderState(options: {
     ? selectedCage.cells.map((cell) => ({ ...cell }))
     : [];
 
-  const matchingValueCells: Cell[] = [];
-  const matchingNoteCells: Cell[] = [];
-  if (selectedNumber !== null) {
-    for (let row = 0; row < puzzle.size; row++) {
-      for (let col = 0; col < puzzle.size; col++) {
-        if (grid[row][col] === selectedNumber) {
-          matchingValueCells.push({ row, col });
-        }
-
-        if (grid[row][col] === 0 && notes[row][col].has(selectedNumber)) {
-          matchingNoteCells.push({ row, col });
-        }
-      }
-    }
-  }
-
   return {
     selectedCell: { ...selectedCell },
     selectedNumber,
@@ -112,8 +95,8 @@ export function buildBoardRenderState(options: {
       (cell) => !sameCell(cell, selectedCell)
     ),
     selectedCageCells,
-    matchingValueCells,
-    matchingNoteCells,
+    matchingValueCells: [],
+    matchingNoteCells: [],
     notesMode,
     errors: errors.map((cell) => ({ ...cell })),
   };

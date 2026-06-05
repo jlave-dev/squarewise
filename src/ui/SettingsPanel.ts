@@ -131,7 +131,6 @@ export class SettingsPanel {
     const options = [
       { value: 'light', label: 'Light' },
       { value: 'dark', label: 'Dark' },
-      { value: 'auto', label: 'Auto' },
     ];
 
     for (const opt of options) {
@@ -143,7 +142,7 @@ export class SettingsPanel {
       }
       select.appendChild(option);
     }
-    select.value = this.settings?.theme ?? 'auto';
+    select.value = this.settings?.theme ?? 'light';
 
     select.addEventListener('change', async (e) => {
       const value = (e.target as HTMLSelectElement).value as UserSettings['theme'];
@@ -178,12 +177,7 @@ export class SettingsPanel {
   }
 
   private applyTheme(theme: UserSettings['theme']): void {
-    if (theme === 'auto') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    } else {
-      document.documentElement.setAttribute('data-theme', theme);
-    }
+    document.documentElement.setAttribute('data-theme', theme);
   }
 
   private detectHapticSupport(): boolean {

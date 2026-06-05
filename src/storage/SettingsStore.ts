@@ -2,7 +2,7 @@ import { getSetting, setSetting } from './IndexedDB';
 import type { UserSettings } from '../types/game';
 
 const DEFAULT_SETTINGS: UserSettings = {
-  theme: 'auto',
+  theme: 'light',
   showTimer: true,
   showErrors: true,
   soundEnabled: false,
@@ -31,15 +31,16 @@ class SettingsStore {
   async load(): Promise<void> {
     const localSettings = this.readLocalSettings();
     if (localSettings) {
-      this.settings = { ...DEFAULT_SETTINGS, ...localSettings };
+      this.settings = normalizeSettings(localSettings);
       this.loaded = true;
+      this.writeLocalSettings(this.settings);
       this.notifyListeners();
       return;
     }
 
     try {
-      const saved = await getSetting<UserSettings>(SETTINGS_KEY, DEFAULT_SETTINGS);
-      this.settings = { ...DEFAULT_SETTINGS, ...saved };
+      const saved = await getSetting<Partial<UserSettings>>(SETTINGS_KEY, DEFAULT_SETTINGS);
+      this.settings = normalizeSettings(saved);
       this.loaded = true;
       this.writeLocalSettings(this.settings);
       this.notifyListeners();
@@ -120,7 +121,7 @@ class SettingsStore {
       const raw = localStorage.getItem(SETTINGS_LOCAL_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as Partial<UserSettings>;
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      return normalizeSettings(parsed);
     } catch {
       return null;
     }
@@ -169,3 +170,13 @@ class SettingsStore {
 
 // Singleton instance
 export const settingsStore = new SettingsStore();
+
+function normalizeSettings(settings: Partial<UserSettings>): UserSettings {
+  const theme = settings.theme === 'dark' ? 'dark' : 'light';
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    theme,
+  };
+}

@@ -373,15 +373,19 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
+  min-height: 100dvh;
   background: rgba(31, 34, 38, 0.42);
   backdrop-filter: blur(4px);
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
   opacity: 0;
   transition: opacity 0.2s ease;
   pointer-events: none;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) 0 max(16px, env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-overlay[style*="display: flex"] {
@@ -399,6 +403,9 @@ body::before {
   padding: 22px;
   max-width: 400px;
   width: 90%;
+  max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(18px) saturate(135%);
   transform: scale(0.95);
@@ -880,7 +887,12 @@ body::before {
   :root {
     --ui-top-offset: 194px;
     --ui-bottom-offset: 184px;
-    --board-screen-margin: 24px;
+    --board-screen-margin: 0px;
+  }
+
+  #app {
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .ui-container {
@@ -922,7 +934,8 @@ body::before {
 
   .modal-content {
     padding: 18px;
-    margin: 16px;
+    margin: 0;
+    width: min(400px, calc(100vw - 32px));
   }
 
   .number-btn {
@@ -959,7 +972,7 @@ body::before {
   :root {
     --ui-top-offset: 178px;
     --ui-bottom-offset: 168px;
-    --board-screen-margin: 20px;
+    --board-screen-margin: 0px;
   }
 
   .game-title {
@@ -1017,7 +1030,7 @@ body::before {
   :root {
     --ui-top-offset: 194px;
     --ui-bottom-offset: 184px;
-    --board-screen-margin: 24px;
+    --board-screen-margin: 0px;
   }
 
   .ui-btn .sw-icon {
@@ -1046,7 +1059,7 @@ body::before {
   :root {
     --ui-top-offset: 170px;
     --ui-bottom-offset: 158px;
-    --board-screen-margin: 20px;
+    --board-screen-margin: 0px;
   }
 
   .ui-container {
@@ -1081,7 +1094,7 @@ body::before {
   :root {
     --ui-top-offset: 178px;
     --ui-bottom-offset: 168px;
-    --board-screen-margin: 20px;
+    --board-screen-margin: 0px;
   }
 
   .ui-container {
