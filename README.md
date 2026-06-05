@@ -4,8 +4,6 @@ SquareWise is a browser-based KenKen-style puzzle game built with vanilla TypeSc
 
 Live app: [https://jlave-dev.github.io/squarewise/](https://jlave-dev.github.io/squarewise/)
 
-![SquareWise gameplay showing a 5x5 KenKen-style puzzle board](outputs/screenshots/squarewise-gameplay.png)
-
 ## Features
 
 - Generated KenKen-style puzzles across `beginner`, `easy`, `medium`, `hard`, and `expert`
@@ -185,9 +183,6 @@ public/
   icons/      favicon and PWA icons
   manifest.json
   sw.js
-outputs/
-  logos/      generated logo exploration and handoff artifacts
-  screenshots/ generated README and QA screenshots
 ```
 
 ## Contributing
