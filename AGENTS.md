@@ -81,7 +81,7 @@ State generally flows from input handlers to `Game`, through `StateManager`, the
 ## Repository Boundaries
 
 - Do not edit `dist/`; it is generated build output.
-- Keep generated logo exploration under `outputs/logos/` and generated screenshots under `outputs/screenshots/`.
+- Keep local generated artifacts under `outputs/`; this directory is ignored and must not be committed.
 - Do not introduce new runtime dependencies unless the app genuinely needs them; this repo is intentionally vanilla TypeScript.
 - Do not put secrets or environment-specific credentials in the repo. No `.env` file is required for normal development.
 
