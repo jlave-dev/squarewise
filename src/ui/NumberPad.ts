@@ -1,7 +1,8 @@
 import {
-  faDeleteLeft,
+  faEraser,
   faPen,
   faPenToSquare,
+  faTableCellsLarge,
 } from '@fortawesome/free-solid-svg-icons';
 import { createIconElement, setLabeledIconContent } from './icons';
 
@@ -35,6 +36,8 @@ export class NumberPad {
   private collapsible = false;
   private buttons: HTMLButtonElement[] = [];
   private notesToggle: HTMLButtonElement | null = null;
+  private selectedNumber: number | null = null;
+  private completedNumbers: Set<number> = new Set();
 
   constructor(options: NumberPadOptions) {
     this.options = options;
@@ -152,12 +155,8 @@ export class NumberPad {
         this.notesMode ? faPenToSquare : faPen,
         'Notes'
       );
-      this.notesToggle.style.background = this.notesMode
-        ? 'var(--accent)'
-        : 'var(--bg-primary)';
-      this.notesToggle.style.color = this.notesMode
-        ? 'white'
-        : 'var(--text-primary)';
+      this.notesToggle.classList.toggle('is-active', this.notesMode);
+      this.notesToggle.setAttribute('aria-pressed', String(this.notesMode));
     }
   }
 
@@ -165,6 +164,7 @@ export class NumberPad {
     this.container.innerHTML = '';
     this.actionsContainer.innerHTML = '';
     this.buttons = [];
+    this.root.dataset.gridSize = String(this.gridSize);
     this.container.style.setProperty('--number-pad-columns', String(this.getPreferredColumnCount()));
 
     for (let i = 1; i <= this.gridSize; i++) {
@@ -173,19 +173,35 @@ export class NumberPad {
       this.buttons.push(btn);
     }
 
+    const notesGroup = document.createElement('div');
+    notesGroup.className = 'number-pad-notes-group';
+
     this.notesToggle = document.createElement('button');
-    this.notesToggle.className = 'number-pad-action-btn';
+    this.notesToggle.className = 'number-pad-action-btn number-pad-action-btn--notes';
+    this.notesToggle.type = 'button';
     this.notesToggle.addEventListener('click', () => this.toggleNotes());
-    this.actionsContainer.appendChild(this.notesToggle);
+    notesGroup.appendChild(this.notesToggle);
+
+    const noteGridBtn = document.createElement('button');
+    noteGridBtn.className = 'number-pad-action-btn number-pad-action-btn--grid';
+    noteGridBtn.type = 'button';
+    noteGridBtn.setAttribute('aria-label', 'Note grid');
+    noteGridBtn.appendChild(createIconElement(faTableCellsLarge));
+    noteGridBtn.addEventListener('click', () => this.toggleNotes());
+    notesGroup.appendChild(noteGridBtn);
+
+    this.actionsContainer.appendChild(notesGroup);
 
     const clearBtn = document.createElement('button');
-    clearBtn.className = 'number-pad-action-btn';
-    clearBtn.appendChild(createIconElement(faDeleteLeft));
+    clearBtn.className = 'number-pad-action-btn number-pad-action-btn--clear';
+    clearBtn.type = 'button';
+    clearBtn.appendChild(createIconElement(faEraser));
     clearBtn.appendChild(Object.assign(document.createElement('span'), { textContent: 'Clear' }));
     clearBtn.addEventListener('click', () => this.options.onClear?.());
     this.actionsContainer.appendChild(clearBtn);
 
     this.updateNotesButton();
+    this.applyNumberButtonStates();
   }
 
   private getPreferredColumnCount(): number {
@@ -199,6 +215,7 @@ export class NumberPad {
   private createNumberButton(num: number): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'number-btn';
+    btn.type = 'button';
     btn.textContent = num.toString();
     btn.addEventListener('click', () => {
       this.options.onNumber(num);
@@ -208,9 +225,9 @@ export class NumberPad {
   }
 
   private animateButton(btn: HTMLButtonElement): void {
-    btn.style.transform = 'scale(0.95)';
+    btn.classList.add('is-pressed');
     setTimeout(() => {
-      btn.style.transform = 'scale(1)';
+      btn.classList.remove('is-pressed');
     }, 100);
   }
 
@@ -218,30 +235,25 @@ export class NumberPad {
    * Highlight a number button (for showing which number is selected)
    */
   highlightNumber(num: number | null): void {
-    this.buttons.forEach((btn, index) => {
-      if (index + 1 === num) {
-        btn.style.background = 'var(--accent)';
-        btn.style.color = 'white';
-      } else {
-        btn.style.background = 'var(--bg-primary)';
-        btn.style.color = 'var(--text-primary)';
-      }
-    });
+    this.selectedNumber = num;
+    this.applyNumberButtonStates();
   }
 
   /**
    * Show disabled state for completed numbers (all instances filled)
    */
   setCompletedNumbers(completed: Set<number>): void {
+    this.completedNumbers = new Set(completed);
+    this.applyNumberButtonStates();
+  }
+
+  private applyNumberButtonStates(): void {
     this.buttons.forEach((btn, index) => {
       const num = index + 1;
-      if (completed.has(num)) {
-        btn.style.opacity = '0.5';
-        btn.disabled = true;
-      } else {
-        btn.style.opacity = '1';
-        btn.disabled = false;
-      }
+      const isCompleted = this.completedNumbers.has(num);
+      btn.classList.toggle('is-selected', num === this.selectedNumber);
+      btn.classList.toggle('is-completed', isCompleted);
+      btn.disabled = isCompleted;
     });
   }
 

@@ -15,7 +15,7 @@ interface RendererConfig {
 const DEFAULT_CONFIG: RendererConfig = {
   cellSize: 100,
   padding: 20,
-  fontSize: 48,
+  fontSize: 60,
   clueFontSize: 22,
 };
 
@@ -219,10 +219,14 @@ export class CanvasRenderer {
       '--cage-color-1', '--cage-color-2', '--cage-color-3', '--cage-color-4',
       '--cage-color-5', '--cage-color-6', '--cage-color-7', '--cage-color-8',
     ];
+    const rootStyles = getComputedStyle(document.documentElement);
 
     for (const cage of this.puzzle.cages) {
+      const directColor = rootStyles
+        .getPropertyValue(`--cage-color-${cage.id + 1}`)
+        .trim();
       const colorVar = cageColors[cage.id % cageColors.length];
-      const color = getComputedStyle(document.documentElement)
+      const color = directColor || rootStyles
         .getPropertyValue(colorVar).trim() || 'rgba(200, 200, 200, 0.3)';
 
       this.ctx.fillStyle = color;
@@ -265,13 +269,11 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw related row, column, cage, and selected-number context.
+   * Draw selected cage and selected-number context.
    */
   private drawContextHighlights(): void {
     if (!this.puzzle) return;
 
-    const relatedColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--cell-related').trim() || 'rgba(14, 165, 233, 0.09)';
     const cageColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--cell-selected-cage').trim() || 'rgba(20, 184, 166, 0.12)';
     const matchColor = getComputedStyle(document.documentElement)
@@ -281,7 +283,6 @@ export class CanvasRenderer {
     const notesModeColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--notes-mode-accent').trim() || 'rgba(20, 184, 166, 0.22)';
 
-    this.fillCells(this.renderState.relatedCells, relatedColor);
     this.fillCells(this.renderState.selectedCageCells, cageColor);
     this.fillCells(this.renderState.matchingNoteCells, noteMatchColor);
     this.fillCells(this.renderState.matchingValueCells, matchColor);
@@ -290,8 +291,8 @@ export class CanvasRenderer {
       const { originX, originY } = this.getOrigin();
       const gridSize = this.puzzle.size * this.config.cellSize;
       this.ctx.strokeStyle = notesModeColor;
-      this.ctx.lineWidth = 4;
-      this.ctx.strokeRect(originX - 8, originY - 8, gridSize + 16, gridSize + 16);
+      this.ctx.lineWidth = 3;
+      this.ctx.strokeRect(originX - 6, originY - 6, gridSize + 12, gridSize + 12);
     }
   }
 
@@ -323,9 +324,28 @@ export class CanvasRenderer {
     );
 
     this.ctx.strokeStyle = getComputedStyle(document.documentElement)
-      .getPropertyValue('--accent').trim() || '#3B82F6';
+      .getPropertyValue('--focus-ring').trim() || '#6366F1';
+    this.ctx.lineWidth = 4;
+    this.ctx.lineJoin = 'round';
+    this.strokeRoundedRect(
+      x + 2,
+      y + 2,
+      this.config.cellSize - 4,
+      this.config.cellSize - 4,
+      9
+    );
+
+    const handleX = x + this.config.cellSize;
+    const handleY = y + this.config.cellSize / 2;
+    this.ctx.beginPath();
+    this.ctx.arc(handleX, handleY, 7.5, 0, Math.PI * 2);
+    this.ctx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--focus-ring').trim() || '#6366F1';
+    this.ctx.fill();
     this.ctx.lineWidth = 3;
-    this.ctx.strokeRect(x + 1.5, y + 1.5, this.config.cellSize - 3, this.config.cellSize - 3);
+    this.ctx.strokeStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg-grid').trim() || '#FFFFFF';
+    this.ctx.stroke();
   }
 
   /**
@@ -338,7 +358,7 @@ export class CanvasRenderer {
       .getPropertyValue('--grid-line').trim() || '#E2E8F0';
 
     this.ctx.strokeStyle = lineColor;
-    this.ctx.lineWidth = 1;
+    this.ctx.lineWidth = 1.1;
 
     const { originX, originY } = this.getOrigin();
     const gridSize = this.puzzle.size * this.config.cellSize;
@@ -378,7 +398,9 @@ export class CanvasRenderer {
     for (const cage of this.puzzle.cages) {
       this.ctx.strokeStyle =
         cage.id === this.renderState.selectedCageId ? selectedBorderColor : borderColor;
-      this.ctx.lineWidth = cage.id === this.renderState.selectedCageId ? 4 : 2.5;
+      this.ctx.lineWidth = cage.id === this.renderState.selectedCageId ? 4 : 1.8;
+      this.ctx.lineCap = 'butt';
+      this.ctx.lineJoin = 'miter';
 
       // Find cage boundaries
       const borders = this.getCageBorders(cage.cells);
@@ -403,6 +425,11 @@ export class CanvasRenderer {
         this.ctx.stroke();
       }
     }
+
+    const gridSize = this.puzzle.size * this.config.cellSize;
+    this.ctx.strokeStyle = borderColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(originX, originY, gridSize, gridSize);
   }
 
   /**
@@ -462,7 +489,7 @@ export class CanvasRenderer {
     const errorTextColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--error').trim() || '#EF4444';
 
-    this.ctx.font = this.getCanvasFont(this.config.fontSize);
+    this.ctx.font = this.getCanvasFont(this.config.fontSize, 760);
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
 
@@ -493,7 +520,7 @@ export class CanvasRenderer {
       .getPropertyValue('--note-highlight').trim() || '#B45309';
     const noteSize = Math.max(12, Math.floor(this.config.cellSize * 0.18));
 
-    this.ctx.font = this.getCanvasFont(noteSize);
+    this.ctx.font = this.getCanvasFont(noteSize, 700);
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
 
@@ -529,7 +556,7 @@ export class CanvasRenderer {
       .getPropertyValue('--text-clue').trim() || '#334155';
 
     this.ctx.fillStyle = clueColor;
-    this.ctx.font = this.getCanvasFont(this.config.clueFontSize);
+    this.ctx.font = this.getCanvasFont(this.config.clueFontSize, 520);
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
 
@@ -559,12 +586,12 @@ export class CanvasRenderer {
    * Build a valid canvas font string from current theme settings.
    * Canvas font parsing does not reliably support CSS custom-property syntax.
    */
-  private getCanvasFont(sizePx: number): string {
+  private getCanvasFont(sizePx: number, weight: number = 700): string {
     const fontFamily = getComputedStyle(document.documentElement)
       .getPropertyValue('--font-sans')
       .trim() || 'sans-serif';
 
-    return `bold ${sizePx}px ${fontFamily}`;
+    return `${weight} ${sizePx}px ${fontFamily}`;
   }
 
   /**
@@ -594,6 +621,35 @@ export class CanvasRenderer {
       const { x, y } = this.getCellPosition(cell.row, cell.col);
       this.ctx.fillRect(x, y, this.config.cellSize, this.config.cellSize);
     }
+  }
+
+  private strokeRoundedRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ): void {
+    const ctx = this.ctx as CanvasRenderingContext2D & {
+      roundRect?: (x: number, y: number, w: number, h: number, radii?: number) => void;
+    };
+
+    this.ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, width, height, radius);
+    } else {
+      const r = Math.min(radius, width / 2, height / 2);
+      this.ctx.moveTo(x + r, y);
+      this.ctx.lineTo(x + width - r, y);
+      this.ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      this.ctx.lineTo(x + width, y + height - r);
+      this.ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      this.ctx.lineTo(x + r, y + height);
+      this.ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      this.ctx.lineTo(x, y + r);
+      this.ctx.quadraticCurveTo(x, y, x + r, y);
+    }
+    this.ctx.stroke();
   }
 
   /**
@@ -627,7 +683,7 @@ export class CanvasRenderer {
   drawSelectionBorder(row: number, col: number): void {
     const { x, y } = this.getCellPosition(row, col);
     const borderColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--accent').trim() || '#6366F1';
+      .getPropertyValue('--focus-ring').trim() || '#6366F1';
 
     this.ctx.strokeStyle = borderColor;
     this.ctx.lineWidth = 3;

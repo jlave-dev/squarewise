@@ -92,7 +92,6 @@ export class Modal {
     if (!footer) {
       footer = document.createElement('div');
       footer.className = 'modal-footer';
-      footer.style.cssText = 'display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end;';
       this.content.appendChild(footer);
     }
 

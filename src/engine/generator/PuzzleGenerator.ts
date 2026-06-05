@@ -1,8 +1,8 @@
 import type { Puzzle, Difficulty, PuzzleConfig } from '../../types/puzzle';
 import { SeededRNG, createRNG } from '../../utils/rng';
 import { generateLatinSquare } from './LatinSquare';
-import { generateCages } from './CageGenerator';
-import { assignClues } from './ClueCalculator';
+import { generateCages, isCageConnected } from './CageGenerator';
+import { assignClues, validateClue } from './ClueCalculator';
 import { hasUniqueSolution } from '../solver/BacktrackSolver';
 import { getDifficultyPreset } from '../difficulty/presets';
 import { DifficultyEngine, type DifficultyReport, type UniquenessStatus } from '../difficulty/DifficultyEngine';
@@ -22,7 +22,8 @@ export interface PuzzleGenerationAttempt {
   inTargetBand: boolean;
   approachableOpeningCount: number;
   accepted: boolean;
-  rejectionReason?: 'not-unique' | 'no-approachable-opening';
+  rejectionReason?: 'invalid' | 'not-unique' | 'no-approachable-opening';
+  validationErrors?: string[];
 }
 
 export interface PuzzleGenerationResult {
@@ -83,6 +84,23 @@ export async function generatePuzzleWithReport(config: PuzzleGenerationOptions):
     };
 
     let uniquenessStatus: UniquenessStatus = 'skipped';
+    const validation = validatePuzzle(puzzle);
+    if (!validation.valid) {
+      const report = difficultyEngine.getReport(puzzle, { uniquenessStatus });
+      recordAttempt({
+        attemptLog,
+        attempt: attempts,
+        puzzle,
+        report,
+        uniquenessStatus,
+        accepted: false,
+        rejectionReason: 'invalid',
+        validationErrors: validation.errors,
+        logAttempts: config.logAttempts,
+      });
+      continue;
+    }
+
     const shouldValidateUniqueness =
       config.validateUniqueness === true || (config.validateUniqueness !== false && size <= 7);
 
@@ -160,7 +178,7 @@ export function generatePuzzleSync(config: PuzzleConfig): Puzzle {
 
   assignClues(cages, solution, preset.operations, rng);
 
-  return {
+  const puzzle: Puzzle = {
     id: generatePuzzleId(difficulty, size, rng, seed),
     size,
     difficulty,
@@ -168,6 +186,13 @@ export function generatePuzzleSync(config: PuzzleConfig): Puzzle {
     solution,
     seed: seed ?? undefined,
   };
+
+  const validation = validatePuzzle(puzzle);
+  if (!validation.valid) {
+    throw new Error(`Generated invalid puzzle: ${validation.errors.join('; ')}`);
+  }
+
+  return puzzle;
 }
 
 /**
@@ -244,12 +269,32 @@ export function validatePuzzle(puzzle: Puzzle): { valid: boolean; errors: string
   // Check all cells are covered by cages
   const covered = new Set<string>();
   for (const cage of puzzle.cages) {
+    if (cage.cells.length === 0) {
+      errors.push(`Cage ${cage.id} has no cells`);
+    } else if (!isCageConnected(cage.cells)) {
+      errors.push(`Cage ${cage.id} is disconnected`);
+    }
+
+    const values: number[] = [];
+    let allCellsInBounds = true;
+
     for (const cell of cage.cells) {
+      if (cell.row < 0 || cell.row >= puzzle.size || cell.col < 0 || cell.col >= puzzle.size) {
+        errors.push(`Cell (${cell.row}, ${cell.col}) is outside the ${puzzle.size}x${puzzle.size} grid`);
+        allCellsInBounds = false;
+        continue;
+      }
+
       const key = `${cell.row},${cell.col}`;
       if (covered.has(key)) {
-        errors.push(`Cell (${cell.row}, ${cell.col}) is in multiple cages`);
+        errors.push(`Cell (${cell.row}, ${cell.col}) is covered multiple times`);
       }
       covered.add(key);
+      values.push(puzzle.solution[cell.row][cell.col]);
+    }
+
+    if (allCellsInBounds && !validateClue(cage.clue, values)) {
+      errors.push(`Cage ${cage.id} clue does not match the solution`);
     }
   }
 
@@ -271,6 +316,7 @@ function recordAttempt({
   uniquenessStatus,
   accepted,
   rejectionReason,
+  validationErrors,
   logAttempts,
 }: {
   attemptLog: PuzzleGenerationAttempt[];
@@ -280,6 +326,7 @@ function recordAttempt({
   uniquenessStatus: UniquenessStatus;
   accepted: boolean;
   rejectionReason?: PuzzleGenerationAttempt['rejectionReason'];
+  validationErrors?: string[];
   logAttempts?: boolean;
 }): void {
   const entry: PuzzleGenerationAttempt = {
@@ -291,6 +338,7 @@ function recordAttempt({
     approachableOpeningCount: report.signals.approachableOpeningCount,
     accepted,
     rejectionReason,
+    validationErrors,
   };
 
   attemptLog.push(entry);

@@ -140,6 +140,10 @@ export function validateCageCoverage(cages: Cage[], size: number): boolean {
 
   for (const cage of cages) {
     for (const cell of cage.cells) {
+      if (cell.row < 0 || cell.row >= size || cell.col < 0 || cell.col >= size) {
+        return false;
+      }
+
       const key = `${cell.row},${cell.col}`;
       if (covered.has(key)) {
         return false; // Cell covered twice
@@ -161,6 +165,45 @@ export function validateCageCoverage(cages: Cage[], size: number): boolean {
 }
 
 /**
+ * Ensure a cage is one orthogonally connected region.
+ */
+export function isCageConnected(cells: Cell[]): boolean {
+  if (cells.length === 0) {
+    return false;
+  }
+
+  const cageCellKeys = new Set(cells.map(getCellKey));
+  const visited = new Set<string>();
+  const stack: Cell[] = [cells[0]];
+
+  while (stack.length > 0) {
+    const cell = stack.pop();
+    if (!cell) continue;
+
+    const key = getCellKey(cell);
+    if (visited.has(key)) continue;
+    visited.add(key);
+
+    const directions = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ];
+
+    for (const [dr, dc] of directions) {
+      const neighbor = { row: cell.row + dr, col: cell.col + dc };
+      const neighborKey = getCellKey(neighbor);
+      if (cageCellKeys.has(neighborKey) && !visited.has(neighborKey)) {
+        stack.push(neighbor);
+      }
+    }
+  }
+
+  return visited.size === cageCellKeys.size;
+}
+
+/**
  * Get cells adjacent to a given cell (within bounds)
  */
 export function getAdjacentCells(row: number, col: number, size: number): Cell[] {
@@ -177,4 +220,8 @@ export function getAdjacentCells(row: number, col: number, size: number): Cell[]
   }
 
   return adjacent;
+}
+
+function getCellKey(cell: Cell): string {
+  return `${cell.row},${cell.col}`;
 }

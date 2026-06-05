@@ -1,91 +1,109 @@
 :root {
-  /* Light theme (default) */
-  --bg-primary: #F8FAFC;
+  /* Paper Glass light theme (default) */
+  --bg-primary: #FBFAF7;
   --bg-surface: #FFFFFF;
-  --bg-grid: #FFFFFF;
+  --bg-grid: #FFFDF9;
+  --surface-glass: rgba(255, 255, 255, 0.82);
+  --surface-border: rgba(7, 23, 46, 0.12);
+  --control-bg: rgba(255, 255, 255, 0.88);
+  --control-bg-hover: #FFFFFF;
+  --control-active-bg: #E9F4FF;
 
-  --grid-line: #E2E8F0;
-  --grid-line-thick: #94A3B8;
-  --cage-border: #475569;
+  --grid-line: rgba(12, 28, 53, 0.11);
+  --grid-line-thick: rgba(11, 27, 52, 0.62);
+  --cage-border: rgba(11, 27, 52, 0.58);
 
-  --text-primary: #1E293B;
-  --text-secondary: #64748B;
-  --text-muted: #94A3B8;
-  --text-clue: #334155;
+  --text-primary: #0B1B34;
+  --text-secondary: #0E1E36;
+  --text-muted: rgba(11, 27, 52, 0.62);
+  --text-clue: #0B1B34;
 
-  --accent: #6366F1;
-  --accent-hover: #4F46E5;
+  --accent: #1264D8;
+  --accent-hover: #0B54C2;
+  --focus-ring: #1264D8;
 
   --success: #22C55E;
   --error: #EF4444;
   --warning: #F59E0B;
 
-  --cell-selected: rgba(99, 102, 241, 0.2);
-  --cell-highlight: rgba(99, 102, 241, 0.1);
-  --cell-related: rgba(14, 165, 233, 0.08);
-  --cell-selected-cage: rgba(20, 184, 166, 0.12);
-  --cell-same-number: rgba(245, 158, 11, 0.16);
-  --cell-note-match: rgba(245, 158, 11, 0.09);
+  --cell-selected: rgba(18, 100, 216, 0.08);
+  --cell-highlight: rgba(18, 100, 216, 0.08);
+  --cell-related: rgba(57, 130, 190, 0.055);
+  --cell-selected-cage: rgba(18, 100, 216, 0.055);
+  --cell-same-number: rgba(18, 100, 216, 0.1);
+  --cell-note-match: rgba(18, 100, 216, 0.07);
   --cell-error: rgba(239, 68, 68, 0.2);
-  --cage-border-selected: #0F766E;
+  --cage-border-selected: #1264D8;
   --note-highlight: #B45309;
-  --notes-mode-accent: rgba(20, 184, 166, 0.24);
+  --notes-mode-accent: rgba(18, 100, 216, 0.2);
 
-  --cage-color-1: rgba(239, 246, 255, 0.46);
-  --cage-color-2: rgba(254, 243, 199, 0.42);
-  --cage-color-3: rgba(220, 252, 231, 0.42);
-  --cage-color-4: rgba(254, 226, 226, 0.36);
-  --cage-color-5: rgba(243, 232, 255, 0.38);
-  --cage-color-6: rgba(255, 237, 213, 0.38);
-  --cage-color-7: rgba(226, 254, 255, 0.38);
-  --cage-color-8: rgba(254, 249, 195, 0.34);
+  --cage-color-1: rgba(218, 242, 255, 0.58);
+  --cage-color-2: rgba(255, 238, 216, 0.58);
+  --cage-color-3: rgba(219, 247, 236, 0.6);
+  --cage-color-4: rgba(231, 242, 255, 0.56);
+  --cage-color-5: rgba(245, 240, 255, 0.6);
+  --cage-color-6: rgba(226, 248, 248, 0.6);
+  --cage-color-7: rgba(224, 247, 255, 0.6);
+  --cage-color-8: rgba(255, 247, 210, 0.62);
+  --cage-color-9: rgba(250, 250, 246, 0.7);
+  --cage-color-10: rgba(255, 245, 204, 0.62);
+  --cage-color-11: rgba(218, 248, 238, 0.62);
+  --cage-color-12: rgba(255, 235, 229, 0.58);
+  --cage-color-13: rgba(243, 239, 255, 0.62);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 8px 20px rgba(9, 22, 41, 0.06);
+  --shadow-md: 0 16px 34px rgba(9, 22, 41, 0.09);
+  --shadow-lg: 0 24px 58px rgba(9, 22, 41, 0.12);
 
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 }
 
 [data-theme="dark"] {
-  --bg-primary: #0F172A;
-  --bg-surface: #1E293B;
-  --bg-grid: #1E293B;
+  --bg-primary: #151A20;
+  --bg-surface: #20262D;
+  --bg-grid: #252820;
+  --surface-glass: color-mix(in srgb, var(--bg-surface) 76%, transparent);
+  --surface-border: rgba(238, 229, 209, 0.13);
+  --control-bg: rgba(38, 45, 53, 0.74);
+  --control-bg-hover: #2D3540;
+  --control-active-bg: #1E365F;
 
-  --grid-line: #334155;
-  --grid-line-thick: #64748B;
-  --cage-border: #94A3B8;
+  --grid-line: #46473E;
+  --grid-line-thick: #8A8371;
+  --cage-border: #DED5C5;
 
-  --text-primary: #F1F5F9;
-  --text-secondary: #CBD5E1;
-  --text-muted: #64748B;
-  --text-clue: #E2E8F0;
+  --text-primary: #F5EEE0;
+  --text-secondary: #C7CED2;
+  --text-muted: #89939A;
+  --text-clue: #F3E7CF;
 
-  --accent: #818CF8;
-  --accent-hover: #A5B4FC;
+  --accent: #75A7FF;
+  --accent-hover: #A9C7FF;
+  --focus-ring: #89B5FF;
 
-  --cell-selected: rgba(129, 140, 248, 0.3);
-  --cell-highlight: rgba(129, 140, 248, 0.15);
-  --cell-related: rgba(56, 189, 248, 0.12);
-  --cell-selected-cage: rgba(45, 212, 191, 0.14);
-  --cell-same-number: rgba(251, 191, 36, 0.18);
-  --cell-note-match: rgba(251, 191, 36, 0.11);
-  --cell-error: rgba(248, 113, 113, 0.3);
-  --cage-border-selected: #5EEAD4;
-  --note-highlight: #FCD34D;
-  --notes-mode-accent: rgba(45, 212, 191, 0.28);
+  --cell-selected: rgba(117, 167, 255, 0.28);
+  --cell-highlight: rgba(117, 167, 255, 0.13);
+  --cell-related: rgba(112, 174, 209, 0.13);
+  --cell-selected-cage: rgba(104, 186, 159, 0.16);
+  --cell-same-number: rgba(232, 182, 83, 0.2);
+  --cell-note-match: rgba(232, 182, 83, 0.12);
+  --cell-error: rgba(238, 112, 99, 0.28);
+  --cage-border-selected: #86D6C0;
+  --note-highlight: #F1C76B;
+  --notes-mode-accent: rgba(134, 214, 192, 0.3);
 
-  --cage-color-1: rgba(59, 130, 246, 0.18);
-  --cage-color-2: rgba(234, 179, 8, 0.16);
-  --cage-color-3: rgba(34, 197, 94, 0.16);
-  --cage-color-4: rgba(239, 68, 68, 0.15);
-  --cage-color-5: rgba(168, 85, 247, 0.16);
-  --cage-color-6: rgba(249, 115, 22, 0.16);
-  --cage-color-7: rgba(6, 182, 212, 0.17);
-  --cage-color-8: rgba(236, 72, 153, 0.14);
+  --cage-color-1: rgba(103, 158, 177, 0.18);
+  --cage-color-2: rgba(218, 174, 83, 0.17);
+  --cage-color-3: rgba(101, 176, 125, 0.17);
+  --cage-color-4: rgba(209, 126, 103, 0.16);
+  --cage-color-5: rgba(158, 143, 203, 0.17);
+  --cage-color-6: rgba(211, 147, 97, 0.16);
+  --cage-color-7: rgba(99, 178, 154, 0.16);
+  --cage-color-8: rgba(199, 188, 113, 0.15);
 }
