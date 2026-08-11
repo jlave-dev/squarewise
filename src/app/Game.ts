@@ -68,6 +68,8 @@ export interface GameSnapshot {
   mistakeCount: number;
   lastHint: HintStep | null;
   notesMode: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
   errors: Cell[];
   cages: Array<Pick<Cage, 'id' | 'cells' | 'clue'>>;
   puzzleId: string;
@@ -357,6 +359,7 @@ export class Game {
    * Toggle notes mode
    */
   private toggleNotesMode(): void {
+    if (!this.canInteract()) return;
     this.notesMode = !this.notesMode;
     this.persistActiveState();
     this.emitStateChange();
@@ -531,6 +534,8 @@ export class Game {
       mistakeCount: state.mistakeCount,
       lastHint: this.lastHint ? this.cloneHintStep(this.lastHint) : null,
       notesMode: this.notesMode,
+      canUndo: this.undoStack.canUndo(),
+      canRedo: this.undoStack.canRedo(),
       errors: state.errors.map((cell) => ({ ...cell })),
       cages: state.puzzle.cages.map((cage) => ({
         id: cage.id,
@@ -577,6 +582,7 @@ export class Game {
     } else {
       this.timer.pause();
     }
+    this.callbacks.onTimerUpdate?.(session.timer);
 
     if (status === 'won') {
       this.stateManager.clearErrors();

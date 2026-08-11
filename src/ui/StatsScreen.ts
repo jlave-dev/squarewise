@@ -7,7 +7,8 @@ import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { Modal } from './Modal';
 import { createIconElement } from './icons';
 import { statsStore } from '../storage/StatsStore';
-import { getDifficulties, getDifficultyDescription } from '../engine/difficulty/presets';
+import { getDifficulties } from '../engine/difficulty/presets';
+import { formatBadge } from '../app/share/SharePayload';
 import type { Difficulty } from '../types/puzzle';
 import type { PlayerStats } from '../types/game';
 
@@ -36,11 +37,15 @@ export class StatsScreen {
       this.modal.close();
     }, 'primary');
 
-    this.modal.addButton('Reset Stats', async () => {
-      await statsStore.reset();
-      const refreshed = this.createContent();
-      this.modal.setContent(refreshed);
-    }, 'secondary');
+    if (statsStore.getTotalCompleted() > 0 || Object.keys(statsStore.getStats().dailyCompletions).length > 0) {
+      let resetButton: HTMLButtonElement;
+      resetButton = this.modal.addButton('Reset Statistics', async () => {
+        if (!window.confirm('Reset all statistics? This cannot be undone.')) return;
+        await statsStore.reset();
+        this.modal.setContent(this.createContent());
+        resetButton.remove();
+      }, 'secondary');
+    }
 
     this.modal.open();
   }
@@ -199,13 +204,13 @@ export class StatsScreen {
       align-items: center;
       padding: 10px 0;
       border-bottom: 1px solid var(--grid-line);
-      ${isEmpty ? 'opacity: 0.4;' : ''}
+      ${isEmpty ? '--text-primary: var(--text-muted);' : ''}
     `;
 
-    // Difficulty name + grid size
+    // Difficulty name
     const nameCell = document.createElement('span');
     nameCell.style.cssText = `font-size: 0.9rem; color: var(--text-primary);`;
-    nameCell.textContent = getDifficultyDescription(difficulty);
+    nameCell.textContent = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
     row.appendChild(nameCell);
 
     // Best time
@@ -271,7 +276,12 @@ export class StatsScreen {
       `;
 
       const left = document.createElement('div');
-      left.textContent = `${completion.date} - ${completion.difficulty}`;
+      const date = new Date(`${completion.date}T00:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      });
+      const difficulty = completion.difficulty.charAt(0).toUpperCase() + completion.difficulty.slice(1);
+      left.textContent = `${date} · ${difficulty}`;
       left.style.cssText = `color: var(--text-primary); font-size: 0.88rem;`;
       row.appendChild(left);
 
@@ -287,7 +297,7 @@ export class StatsScreen {
           color: var(--text-secondary);
           font-size: 0.76rem;
         `;
-        badges.textContent = completion.badges.join(', ');
+        badges.textContent = completion.badges.map(formatBadge).join(' · ');
         row.appendChild(badges);
       }
 
@@ -304,6 +314,9 @@ export class StatsScreen {
   }
 
   private formatTotalTime(seconds: number): string {
-    return `${Math.round(seconds / 3600)}h`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   }
 }

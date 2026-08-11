@@ -8,6 +8,10 @@
   --control-bg: rgba(255, 255, 255, 0.88);
   --control-bg-hover: #FFFFFF;
   --control-active-bg: #E9F4FF;
+  --difficulty-chip-bg: rgba(211, 246, 229, 0.72);
+  --page-glow: rgba(255, 255, 255, 0.9);
+  --page-wash-start: rgba(255, 255, 255, 0.36);
+  --page-wash-end: rgba(235, 230, 220, 0.18);
 
   --grid-line: rgba(12, 28, 53, 0.11);
   --grid-line-thick: rgba(11, 27, 52, 0.62);
@@ -59,6 +63,9 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
   --font-display: Georgia, 'Times New Roman', serif;
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
@@ -73,6 +80,10 @@
   --control-bg: rgba(38, 45, 53, 0.74);
   --control-bg-hover: #2D3540;
   --control-active-bg: #1E365F;
+  --difficulty-chip-bg: rgba(46, 82, 69, 0.76);
+  --page-glow: rgba(68, 86, 108, 0.18);
+  --page-wash-start: rgba(255, 255, 255, 0.015);
+  --page-wash-end: rgba(0, 0, 0, 0.2);
 
   --grid-line: #46473E;
   --grid-line-thick: #8A8371;
@@ -106,4 +117,9 @@
   --cage-color-6: rgba(211, 147, 97, 0.16);
   --cage-color-7: rgba(99, 178, 154, 0.16);
   --cage-color-8: rgba(199, 188, 113, 0.15);
+  --cage-color-9: rgba(148, 151, 143, 0.15);
+  --cage-color-10: rgba(205, 172, 76, 0.16);
+  --cage-color-11: rgba(104, 180, 136, 0.17);
+  --cage-color-12: rgba(206, 119, 100, 0.16);
+  --cage-color-13: rgba(159, 144, 204, 0.17);
 }

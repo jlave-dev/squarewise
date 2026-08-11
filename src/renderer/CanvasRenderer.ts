@@ -54,6 +54,7 @@ export class CanvasRenderer {
     this.canvas.style.setProperty('--board-ideal-size', `${this.logicalCanvasSize}px`);
     this.canvas.style.width = `min(${this.logicalCanvasSize}px, var(--board-max-size, ${this.logicalCanvasSize}px))`;
     this.canvas.style.height = `min(${this.logicalCanvasSize}px, var(--board-max-size, ${this.logicalCanvasSize}px))`;
+    this.canvas.hidden = false;
     this.canvas.width = this.logicalCanvasSize * this.dpr;
     this.canvas.height = this.logicalCanvasSize * this.dpr;
 
@@ -328,18 +329,6 @@ export class CanvasRenderer {
       this.config.cellSize - 4,
       9
     );
-
-    const handleX = x + this.config.cellSize;
-    const handleY = y + this.config.cellSize / 2;
-    this.ctx.beginPath();
-    this.ctx.arc(handleX, handleY, 7.5, 0, Math.PI * 2);
-    this.ctx.fillStyle = getComputedStyle(document.documentElement)
-      .getPropertyValue('--focus-ring').trim() || '#6366F1';
-    this.ctx.fill();
-    this.ctx.lineWidth = 3;
-    this.ctx.strokeStyle = getComputedStyle(document.documentElement)
-      .getPropertyValue('--bg-grid').trim() || '#FFFFFF';
-    this.ctx.stroke();
   }
 
   /**

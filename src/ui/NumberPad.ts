@@ -38,6 +38,7 @@ export class NumberPad {
   private notesToggle: HTMLButtonElement | null = null;
   private selectedNumber: number | null = null;
   private completedNumbers: Set<number> = new Set();
+  private enabled = true;
 
   constructor(options: NumberPadOptions) {
     this.options = options;
@@ -75,7 +76,7 @@ export class NumberPad {
   private createToggleButton(): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'number-pad-toggle';
-    btn.textContent = 'Show keypad';
+    btn.textContent = 'Show Keypad';
     btn.addEventListener('click', () => this.toggleVisibility());
     return btn;
   }
@@ -131,6 +132,14 @@ export class NumberPad {
     this.updateVisibility();
   }
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    this.applyNumberButtonStates();
+    this.actionsContainer.querySelectorAll('button').forEach((button) => {
+      button.disabled = !enabled;
+    });
+  }
+
   /**
    * Toggle keypad visibility state.
    */
@@ -144,7 +153,7 @@ export class NumberPad {
     this.actionsContainer.style.display = this.visible ? 'grid' : 'none';
     this.toggleButton.style.display = this.collapsible ? 'inline-flex' : 'none';
     this.keyboardHints.style.display = shouldShowKeyboardHints(this.collapsible, this.visible) ? 'block' : 'none';
-    this.toggleButton.textContent = this.visible ? 'Hide keypad' : 'Show keypad';
+    this.toggleButton.textContent = this.visible ? 'Hide Keypad' : 'Show Keypad';
     this.root.classList.toggle('collapsed', !this.visible);
   }
 
@@ -185,7 +194,7 @@ export class NumberPad {
     const noteGridBtn = document.createElement('button');
     noteGridBtn.className = 'number-pad-action-btn number-pad-action-btn--grid';
     noteGridBtn.type = 'button';
-    noteGridBtn.setAttribute('aria-label', 'Note grid');
+    noteGridBtn.setAttribute('aria-label', 'Note Grid');
     noteGridBtn.appendChild(createIconElement(faTableCellsLarge));
     noteGridBtn.addEventListener('click', () => this.toggleNotes());
     notesGroup.appendChild(noteGridBtn);
@@ -201,7 +210,7 @@ export class NumberPad {
     this.actionsContainer.appendChild(clearBtn);
 
     this.updateNotesButton();
-    this.applyNumberButtonStates();
+    this.setEnabled(this.enabled);
   }
 
   private getPreferredColumnCount(): number {
@@ -253,7 +262,7 @@ export class NumberPad {
       const isCompleted = this.completedNumbers.has(num);
       btn.classList.toggle('is-selected', num === this.selectedNumber);
       btn.classList.toggle('is-completed', isCompleted);
-      btn.disabled = isCompleted;
+      btn.disabled = !this.enabled || isCompleted;
     });
   }
 
