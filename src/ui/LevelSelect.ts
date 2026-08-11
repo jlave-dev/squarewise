@@ -45,19 +45,10 @@ export class LevelSelect {
     const dailyBtn = this.createDailyChallengeButton();
     container.appendChild(dailyBtn);
 
-    const tutorialBtn = this.createTutorialButton();
-    container.appendChild(tutorialBtn);
-
-    container.appendChild(this.createArchiveSection());
-
-    // Separator
-    const separator = document.createElement('div');
-    separator.style.cssText = `
-      height: 1px;
-      background: var(--grid-line);
-      margin: 8px 0;
-    `;
-    container.appendChild(separator);
+    const practiceTitle = document.createElement('h3');
+    practiceTitle.className = 'puzzle-section-title';
+    practiceTitle.textContent = 'Practice';
+    container.appendChild(practiceTitle);
 
     // Difficulty buttons
     const difficulties = getDifficulties();
@@ -65,46 +56,27 @@ export class LevelSelect {
       container.appendChild(this.createDifficultyButton(difficulty));
     }
 
+    container.appendChild(this.createTutorialButton());
+    container.appendChild(this.createArchiveSection());
+
     return container;
   }
 
   private createDailyChallengeButton(): HTMLElement {
     const btn = document.createElement('button');
     btn.className = 'daily-challenge-btn';
-    btn.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: linear-gradient(135deg, var(--accent), #818CF8);
-      border: none;
-      border-radius: var(--radius-lg);
-      color: white;
-      cursor: pointer;
-      transition: transform 0.15s ease;
-      width: 100%;
-    `;
 
     const title = document.createElement('div');
-    title.style.cssText = `font-size: 1.2rem; font-weight: bold; margin-bottom: 4px;`;
-    title.textContent = '📅 Daily Challenge';
+    title.className = 'daily-challenge-title';
+    title.textContent = 'Daily Challenge';
 
     const subtitle = document.createElement('div');
-    subtitle.style.cssText = `font-size: 0.9rem; opacity: 0.9;`;
+    subtitle.className = 'daily-challenge-date';
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
     subtitle.textContent = today;
 
     btn.appendChild(title);
     btn.appendChild(subtitle);
-
-    btn.addEventListener('mouseenter', () => {
-      btn.style.transform = 'scale(1.02)';
-    });
-
-    btn.addEventListener('mouseleave', () => {
-      btn.style.transform = 'scale(1)';
-    });
 
     btn.addEventListener('click', () => {
       this.modal.close();
@@ -118,7 +90,7 @@ export class LevelSelect {
     const btn = document.createElement('button');
     btn.className = 'tutorial-launch-btn btn btn-secondary';
     btn.type = 'button';
-    btn.textContent = 'Tutorial';
+    btn.textContent = 'How to Play';
     btn.addEventListener('click', () => {
       this.modal.close();
       this.onTutorial?.();
@@ -127,12 +99,12 @@ export class LevelSelect {
   }
 
   private createArchiveSection(): HTMLElement {
-    const section = document.createElement('div');
+    const section = document.createElement('details');
     section.className = 'archive-section';
 
-    const title = document.createElement('div');
+    const title = document.createElement('summary');
     title.className = 'archive-title';
-    title.textContent = 'Archive';
+    title.textContent = 'Past Daily Puzzles';
     section.appendChild(title);
 
     const list = document.createElement('div');
@@ -153,7 +125,15 @@ export class LevelSelect {
     const btn = document.createElement('button');
     btn.className = 'archive-btn';
     btn.type = 'button';
-    btn.textContent = date;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    btn.textContent = date === formatLocalDate(yesterday)
+      ? 'Yesterday'
+      : new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        });
     btn.addEventListener('click', () => {
       this.modal.close();
       this.onArchiveChallenge?.(date, difficulty);
@@ -172,40 +152,17 @@ export class LevelSelect {
       hard: '#F97316',
       expert: '#EF4444',
     };
-
-    btn.style.cssText = `
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px;
-      background: var(--bg-surface);
-      border: 2px solid ${colors[difficulty]};
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      width: 100%;
-    `;
+    btn.style.setProperty('--difficulty-color', colors[difficulty]);
 
     const leftContent = document.createElement('div');
-    leftContent.style.cssText = `text-align: left;`;
+    leftContent.className = 'difficulty-copy';
 
     const title = document.createElement('div');
     title.className = 'difficulty-title';
-    title.style.cssText = `
-      font-size: 1.1rem;
-      font-weight: bold;
-      color: var(--text-primary);
-      text-transform: capitalize;
-    `;
     title.textContent = difficulty;
 
     const description = document.createElement('div');
     description.className = 'difficulty-description';
-    description.style.cssText = `
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-      margin-top: 4px;
-    `;
     description.textContent = getDifficultyDescription(difficulty);
 
     leftContent.appendChild(title);
@@ -213,37 +170,10 @@ export class LevelSelect {
 
     const gridSize = document.createElement('div');
     gridSize.className = 'difficulty-grid';
-    gridSize.style.cssText = `
-      font-size: 1.2rem;
-      font-weight: bold;
-      color: ${colors[difficulty]};
-    `;
     gridSize.textContent = `${getGridSize(difficulty)}×${getGridSize(difficulty)}`;
 
     btn.appendChild(leftContent);
     btn.appendChild(gridSize);
-
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = `${colors[difficulty]}`;
-      // Make title white on hover for better contrast
-      const title = btn.querySelector('.difficulty-title') as HTMLElement;
-      if (title) title.style.color = 'white';
-      const description = btn.querySelector('.difficulty-description') as HTMLElement;
-      if (description) description.style.color = 'rgba(255, 255, 255, 0.9)';
-      const gridSize = btn.querySelector('.difficulty-grid') as HTMLElement;
-      if (gridSize) gridSize.style.color = 'white';
-    });
-
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'var(--bg-surface)';
-      // Restore original colors
-      const title = btn.querySelector('.difficulty-title') as HTMLElement;
-      if (title) title.style.color = 'var(--text-primary)';
-      const description = btn.querySelector('.difficulty-description') as HTMLElement;
-      if (description) description.style.color = 'var(--text-secondary)';
-      const gridSize = btn.querySelector('.difficulty-grid') as HTMLElement;
-      if (gridSize) gridSize.style.color = colors[difficulty];
-    });
 
     btn.addEventListener('click', () => {
       this.modal.close();

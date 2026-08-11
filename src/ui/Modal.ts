@@ -26,6 +26,7 @@ export class Modal {
     // Create overlay
     this.overlay = document.createElement('div');
     this.overlay.className = 'modal-overlay';
+    this.overlay.setAttribute('aria-hidden', 'true');
     this.overlay.addEventListener('click', (e) => {
       if (e.target === this.overlay) {
         this.close();
@@ -87,7 +88,7 @@ export class Modal {
   /**
    * Add a button to the modal
    */
-  addButton(text: string, onClick: () => void, variant: 'primary' | 'secondary' = 'primary'): this {
+  addButton(text: string, onClick: () => void, variant: 'primary' | 'secondary' = 'primary'): HTMLButtonElement {
     let footer = this.content.querySelector('.modal-footer') as HTMLDivElement;
     if (!footer) {
       footer = document.createElement('div');
@@ -100,7 +101,7 @@ export class Modal {
     btn.textContent = text;
     btn.addEventListener('click', onClick);
     footer.appendChild(btn);
-    return this;
+    return btn;
   }
 
   /**
@@ -119,6 +120,7 @@ export class Modal {
       ? document.activeElement
       : null;
     this.visible = true;
+    this.overlay.removeAttribute('aria-hidden');
     this.overlay.style.display = 'flex';
     this.overlay.style.pointerEvents = 'auto';
     // Trigger reflow for animation
@@ -138,15 +140,16 @@ export class Modal {
     this.overlay.classList.remove('visible');
     this.overlay.style.pointerEvents = 'none';
     this.visible = false;
+    this.restoreFocus();
+    this.overlay.setAttribute('aria-hidden', 'true');
 
     setTimeout(() => {
       if (!this.visible) {
         this.overlay.style.display = 'none';
       }
-    }, 200);
+    }, 180);
 
     this.onClose?.();
-    this.restoreFocus();
   }
 
   /**

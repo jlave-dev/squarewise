@@ -119,6 +119,8 @@ function makeTutorialSnapshot(): GameSnapshot {
     mistakeCount: 0,
     lastHint: null,
     notesMode: false,
+    canUndo: false,
+    canRedo: false,
     errors: [],
     cages: puzzle.cages.map((cage) => ({
       id: cage.id,

@@ -88,7 +88,7 @@ export class AccessibleBoard {
     button.setAttribute('role', 'gridcell');
     button.setAttribute('aria-label', createAccessibleCellLabel(snapshot, cell));
     button.setAttribute('aria-selected', String(selected));
-    button.tabIndex = selected ? 0 : -1;
+    button.tabIndex = selected || (!snapshot.selectedCell && cell.row === 0 && cell.col === 0) ? 0 : -1;
     button.addEventListener('click', () => this.selectCell(cell));
     button.addEventListener('keydown', (event) => this.handleCellKeyDown(event, snapshot, cell));
     return button;

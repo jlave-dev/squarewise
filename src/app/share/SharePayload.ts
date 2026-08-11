@@ -19,7 +19,7 @@ export interface SharePayload {
   url: string;
 }
 
-function formatBadge(badge: DailyBadge): string {
+export function formatBadge(badge: DailyBadge): string {
   const labels: Record<DailyBadge, string> = {
     'no-hint': 'No hint',
     'no-reveal': 'No reveal',
@@ -40,7 +40,7 @@ function formatHints(hintsUsed: number): string {
   return `${hintsUsed} ${suffix}`;
 }
 
-function formatHintResult(stats: WinShareStats): string {
+export function formatHintResult(stats: WinShareStats): string {
   if (!stats.hintUsage) {
     return formatHints(stats.hintsUsed);
   }

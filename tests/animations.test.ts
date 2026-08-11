@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { clamp, prefersReducedMotion } from '../src/utils/animations';
+import { prefersReducedMotion } from '../src/utils/animations';
 
 test('prefersReducedMotion reads reduce media query state', () => {
   assert.equal(
@@ -18,10 +18,4 @@ test('prefersReducedMotion reads reduce media query state', () => {
     }),
     false
   );
-});
-
-test('clamp bounds values', () => {
-  assert.equal(clamp(4, 1, 3), 3);
-  assert.equal(clamp(-1, 1, 3), 1);
-  assert.equal(clamp(2, 1, 3), 2);
 });

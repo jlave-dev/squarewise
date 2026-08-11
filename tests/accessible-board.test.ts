@@ -18,8 +18,11 @@ function makeSnapshot(): GameSnapshot {
     timer: 12,
     hintsUsed: 0,
     hintUsage: { tier1: 0, tier2: 0, tier3: 0, tier4: 0 },
+    mistakeCount: 0,
     lastHint: null,
     notesMode: true,
+    canUndo: true,
+    canRedo: false,
     errors: [{ row: 0, col: 1 }],
     cages: [
       {

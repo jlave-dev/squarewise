@@ -161,6 +161,7 @@ export class TutorialController {
     } else {
       this.primaryButton.hidden = true;
     }
+    this.skipButton.hidden = step.action === 'complete';
 
     this.root.dataset.step = step.id;
   }

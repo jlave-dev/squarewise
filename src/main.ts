@@ -14,7 +14,7 @@ import { NumberPad } from './ui/NumberPad';
 import { AccessibleBoard } from './ui/AccessibleBoard';
 import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
-import { clearActiveGame } from './storage/ActiveGameStore';
+import { clearActiveGame, loadActiveGame } from './storage/ActiveGameStore';
 import { dailyChallenge } from './core/DailyChallenge';
 import { buildWinSharePayload } from './app/share/SharePayload';
 import { ShareService } from './app/share/ShareService';
@@ -161,11 +161,11 @@ class SquareWiseApp {
       return;
     }
 
+    const activeGame = loadActiveGame();
+    if (activeGame) this.numberPad.setGridSize(activeGame.puzzle.size);
     const resumed = await this.game.resumeActiveGame();
     if (resumed) {
-      const gridSize = this.game.getGridSize();
-      this.numberPad.setGridSize(gridSize);
-      console.log('[SquareWise] Resumed active game with grid size:', gridSize);
+      console.log('[SquareWise] Resumed active game with grid size:', this.game.getGridSize());
       return;
     }
 
@@ -222,14 +222,9 @@ class SquareWiseApp {
     console.log('[SquareWise] Starting new game with difficulty:', difficulty);
     if (!this.game) return;
 
-    this.numberPad.setGridSize(4); // Will be updated based on difficulty
+    this.numberPad.setGridSize(getDifficultyPreset(difficulty).gridSize);
     await this.game.startNewGame(difficulty);
     console.log('[SquareWise] Game started');
-
-    // Update number pad based on puzzle size
-    const gridSize = this.game.getGridSize();
-    this.numberPad.setGridSize(gridSize);
-    console.log('[SquareWise] Number pad updated for grid size:', gridSize);
   }
 
   private async startDailyChallenge(): Promise<void> {
@@ -243,11 +238,8 @@ class SquareWiseApp {
     const puzzle = await dailyChallenge.getTodayPuzzle(difficulty);
     console.log('[SquareWise] Daily puzzle generated:', puzzle.id);
 
-    // Load the puzzle directly
-    this.game['loadPuzzle'](puzzle);
-
-    // Update number pad based on puzzle size
     this.numberPad.setGridSize(puzzle.size);
+    this.game['loadPuzzle'](puzzle);
     console.log('[SquareWise] Daily challenge started with grid size:', puzzle.size);
   }
 
@@ -256,8 +248,8 @@ class SquareWiseApp {
     if (!this.game) return;
 
     const puzzle = await dailyChallenge.getArchivePuzzleForDate(new Date(`${date}T00:00:00`), difficulty);
-    this.game.loadPuzzle(puzzle);
     this.numberPad.setGridSize(puzzle.size);
+    this.game.loadPuzzle(puzzle);
   }
 
   private startTutorial(step: TutorialStepId): void {
@@ -266,8 +258,8 @@ class SquareWiseApp {
     this.winScreen.hide();
     this.levelSelect.hide();
     const puzzle = createTutorialPuzzle();
-    this.game.loadPuzzle(puzzle);
     this.numberPad.setGridSize(puzzle.size);
+    this.game.loadPuzzle(puzzle);
     this.tutorialController.start(step);
   }
 
@@ -542,7 +534,6 @@ class SquareWiseApp {
       if (scenario === 'won-share-fallback') {
         const payload = buildWinSharePayload(stats, window.location.origin);
         const fallback = this.shareService.getFallback(payload);
-        this.winScreen.setShareStatus('Fallback preview: social link + copy action.');
         this.winScreen.showShareFallback(fallback.links, fallback.copyText);
       }
       return;
@@ -568,8 +559,8 @@ class SquareWiseApp {
           seed: `debug-${scenario}-${difficulty}`,
         });
 
-    this.game.loadPuzzle(puzzle);
     this.numberPad.setGridSize(puzzle.size);
+    this.game.loadPuzzle(puzzle);
   }
 
   private mountDebugPanel(): void {
@@ -638,7 +629,9 @@ class SquareWiseApp {
       status: snapshot.status,
     });
     this.uiRenderer.updateHintStep(snapshot.lastHint);
+    this.uiRenderer.updateGameControls(snapshot.status, snapshot.canUndo, snapshot.canRedo);
     this.numberPad.setNotesMode(snapshot.notesMode);
+    this.numberPad.setEnabled(snapshot.status === 'playing');
     this.numberPad.highlightNumber(snapshot.renderState.selectedNumber);
     this.accessibleBoard.update(snapshot);
     this.tutorialController.observe(snapshot);

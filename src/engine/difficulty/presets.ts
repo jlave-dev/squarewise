@@ -21,7 +21,7 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
     maxCageSize: 2,
     singleCellRate: 0.3,
     targetScoreRange: { min: 0, max: 85 },
-    description: '4x4 grid with addition only. Perfect for learning.',
+    description: 'Addition only. Great for learning.',
   },
   easy: {
     gridSize: 5,
@@ -30,7 +30,7 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
     maxCageSize: 3,
     singleCellRate: 0.2,
     targetScoreRange: { min: 90, max: 230 },
-    description: '5x5 grid with addition and subtraction.',
+    description: 'Addition and subtraction.',
   },
   medium: {
     gridSize: 6,
@@ -39,7 +39,7 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
     maxCageSize: 4,
     singleCellRate: 0.1,
     targetScoreRange: { min: 145, max: 360 },
-    description: '6x6 grid with addition, subtraction, and multiplication.',
+    description: 'Adds multiplication.',
   },
   hard: {
     gridSize: 7,
@@ -48,7 +48,7 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
     maxCageSize: 5,
     singleCellRate: 0.05,
     targetScoreRange: { min: 230, max: 600 },
-    description: '7x7 grid with all operations.',
+    description: 'All four operations.',
   },
   expert: {
     gridSize: 9,
@@ -57,7 +57,7 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
     maxCageSize: 6,
     singleCellRate: 0,
     targetScoreRange: { min: 360, max: 920 },
-    description: '9x9 grid with all operations. No single-cell cages.',
+    description: 'No single-cell cages.',
   },
 };
 

@@ -5,6 +5,7 @@ import {
   faGear,
   faLightbulb,
   faPause,
+  faPlay,
   faRotateLeft,
   faRotateRight,
 } from '@fortawesome/free-solid-svg-icons';
@@ -28,12 +29,16 @@ export interface GameHeaderState {
 export class UIRenderer {
   private container: HTMLDivElement;
   private identityContainer: HTMLDivElement;
-  private titleDisplay: HTMLDivElement;
+  private titleDisplay: HTMLHeadingElement;
   private metaDisplay: HTMLDivElement;
   private timerDisplay: HTMLDivElement;
   private controlsContainer: HTMLDivElement;
   private hintPanel: HTMLDivElement;
   private hintText: HTMLDivElement;
+  private undoButton!: HTMLButtonElement;
+  private redoButton!: HTMLButtonElement;
+  private hintButton!: HTMLButtonElement;
+  private pauseButton!: HTMLButtonElement;
 
   constructor() {
     this.container = this.createContainer();
@@ -67,8 +72,8 @@ export class UIRenderer {
     return container;
   }
 
-  private createTitleDisplay(): HTMLDivElement {
-    const display = document.createElement('div');
+  private createTitleDisplay(): HTMLHeadingElement {
+    const display = document.createElement('h1');
     display.className = 'game-title';
     display.textContent = 'SquareWise';
     return display;
@@ -86,6 +91,8 @@ export class UIRenderer {
     const display = document.createElement('div');
     display.className = 'timer-display';
     display.dataset.testid = 'game-timer';
+    display.setAttribute('role', 'timer');
+    display.setAttribute('aria-label', 'Elapsed time 00:00');
     display.textContent = '00:00';
     return display;
   }
@@ -94,10 +101,14 @@ export class UIRenderer {
     const container = document.createElement('div');
     container.className = 'controls-container';
 
-    container.appendChild(this.createButton(faRotateLeft, 'Undo', 'Undo (Ctrl+Z)', () => this.onUndo?.()));
-    container.appendChild(this.createButton(faRotateRight, 'Redo', 'Redo (Ctrl+Y)', () => this.onRedo?.()));
-    container.appendChild(this.createButton(faLightbulb, 'Hint', 'Hint (H)', () => this.onHint?.()));
-    container.appendChild(this.createButton(faPause, 'Pause', 'Pause (P)', () => this.onPause?.()));
+    this.undoButton = this.createButton(faRotateLeft, 'Undo', 'Undo (Ctrl+Z)', () => this.onUndo?.());
+    this.redoButton = this.createButton(faRotateRight, 'Redo', 'Redo (Ctrl+Y)', () => this.onRedo?.());
+    this.hintButton = this.createButton(faLightbulb, 'Hint', 'Hint (H)', () => this.onHint?.());
+    this.pauseButton = this.createButton(faPause, 'Pause', 'Pause (P)', () => this.onPause?.());
+    container.appendChild(this.undoButton);
+    container.appendChild(this.redoButton);
+    container.appendChild(this.hintButton);
+    container.appendChild(this.pauseButton);
     container.appendChild(this.createButton(faChartSimple, 'Stats', 'Statistics', () => this.onStats?.()));
     container.appendChild(this.createButton(faGear, 'Settings', 'Settings', () => this.onSettings?.()));
     container.appendChild(this.createButton(faCirclePlus, 'New', 'New Game', () => this.onNewGame?.()));
@@ -183,6 +194,7 @@ export class UIRenderer {
    */
   updateTimer(formattedTime: string): void {
     this.timerDisplay.textContent = formattedTime;
+    this.timerDisplay.setAttribute('aria-label', `Elapsed time ${formattedTime}`);
   }
 
   /**
@@ -204,6 +216,26 @@ export class UIRenderer {
 
     this.renderMetaChips(parts);
     this.metaDisplay.title = `${parts.join(' - ')} - ${state.puzzleId}`;
+  }
+
+  updateGameControls(status: GameStatus, canUndo: boolean, canRedo: boolean): void {
+    const playing = status === 'playing';
+    const paused = status === 'paused';
+    this.undoButton.disabled = !playing || !canUndo;
+    this.redoButton.disabled = !playing || !canRedo;
+    this.hintButton.disabled = !playing;
+    this.pauseButton.disabled = !playing && !paused;
+
+    const label = paused ? 'Resume' : 'Pause';
+    const title = `${label} (P)`;
+    if (this.pauseButton.dataset.action !== label.toLowerCase()) {
+      this.pauseButton.querySelector('.sw-icon')?.replaceWith(createIconElement(paused ? faPlay : faPause));
+      const labelElement = this.pauseButton.querySelector('.ui-btn-label');
+      if (labelElement) labelElement.textContent = label;
+      this.pauseButton.dataset.action = label.toLowerCase();
+      this.pauseButton.title = title;
+      this.pauseButton.setAttribute('aria-label', label);
+    }
   }
 
   updateHintStep(hint: HintStep | null): void {
@@ -253,10 +285,15 @@ export class UIRenderer {
   }
 
   private formatModeLabel(mode: GameHeaderState['mode'], date: string | null): string {
-    if (mode === 'daily') return date ? `Daily ${date}` : 'Daily';
-    if (mode === 'archive') return date ? `Archive ${date}` : 'Archive';
+    if (mode === 'daily') return 'Daily';
+    if (mode === 'archive') {
+      const formattedDate = date
+        ? new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        : null;
+      return formattedDate ? `Archive ${formattedDate}` : 'Archive';
+    }
     if (mode === 'tutorial') return 'Tutorial';
-    return 'Fresh';
+    return 'Practice';
   }
 
   private formatDifficulty(difficulty: Difficulty): string {

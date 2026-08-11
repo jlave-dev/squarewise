@@ -48,7 +48,7 @@ export class SettingsPanel {
       this.modal.close();
     }, 'primary');
 
-    this.modal.addButton('Reset', async () => {
+    this.modal.addButton('Restore Defaults', async () => {
       await settingsStore.reset();
       this.settings = { ...settingsStore.getSettings() };
       this.applyTheme(this.settings.theme);
@@ -91,7 +91,7 @@ export class SettingsPanel {
     ));
 
     container.appendChild(this.createSettingItem(
-      'Auto-remove Notes',
+      'Auto-Remove Notes',
       this.createToggle('autoRemoveNotes', this.settings?.autoRemoveNotes ?? false)
     ));
 
@@ -117,6 +117,7 @@ export class SettingsPanel {
     const labelEl = document.createElement('span');
     labelEl.textContent = label;
     labelEl.className = 'setting-label';
+    control.setAttribute('aria-label', label);
 
     item.appendChild(labelEl);
     item.appendChild(control);

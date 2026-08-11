@@ -1,14 +1,32 @@
-const CACHE_NAME = 'squarewise-v3';
+const CACHE_NAME = 'squarewise-v4';
 const BASE = new URL('.', self.location).pathname.replace(/\/$/, '');
-const APP_SHELL = [BASE + '/', BASE + '/index.html', BASE + '/manifest.json'];
+const APP_SHELL = [
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/icons/favicon.svg',
+  BASE + '/icons/icon-192.png',
+  BASE + '/icons/icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(cacheAppShell().then(() => self.skipWaiting()));
 });
+
+async function cacheAppShell() {
+  const cache = await caches.open(CACHE_NAME);
+  await cache.addAll(APP_SHELL);
+
+  const index = await cache.match(BASE + '/index.html');
+  if (!index) return;
+
+  const html = await index.text();
+  const assets = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+    .map(([, path]) => new URL(path, self.location.origin))
+    .filter((url) => url.origin === self.location.origin && url.pathname.startsWith(BASE + '/assets/'))
+    .map((url) => url.href);
+  await cache.addAll(assets);
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -69,7 +87,7 @@ async function networkFirst(request) {
 }
 
 async function cacheFirst(request) {
-  const cachedResponse = await caches.match(request);
+  const cachedResponse = await caches.match(request, { ignoreVary: true });
   if (cachedResponse) return cachedResponse;
 
   const response = await fetch(request);
