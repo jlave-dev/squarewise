@@ -138,6 +138,12 @@ Production build details:
 - Manifest: [`public/manifest.json`](public/manifest.json)
 - PWA icons: [`public/icons`](public/icons)
 
+## Statistics policy
+
+Tutorials and wins using any Tier 4 Reveal are excluded from totals, best times, streaks, and daily badges. Other hints are allowed. Each puzzle ID counts once; a daily date counts once across daily and archive play, including different difficulty replays. Replays show their own time/hints without reusing the first result's badges or claiming another best time. Existing aggregate history is retained because older records cannot reliably reconstruct past eligibility.
+
+Statistics changes read and update the latest record in one IndexedDB transaction. Day boundaries and streak expiry use local calendar dates, including across daylight-saving changes. Each tab keeps its own active-game snapshot; the most recently started/resumed tab owns the shared restart backup.
+
 ## Browser Storage
 
 The app stores user-facing state locally in the browser:

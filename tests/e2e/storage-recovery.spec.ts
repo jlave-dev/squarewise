@@ -7,6 +7,7 @@ test('a malformed active cage recovers without deleting settings or unrelated da
     const saved = JSON.parse(localStorage.getItem('squarewise.activeGame.v1')!);
     saved.puzzle.cages = [null];
     localStorage.setItem('squarewise.activeGame.v1', JSON.stringify(saved));
+    sessionStorage.setItem('squarewise.activeGame.v1', JSON.stringify(saved));
     localStorage.setItem('squarewise.tutorial.v1', JSON.stringify({ completed: true, skipped: false }));
     localStorage.setItem('squarewise.userSettings.v1', JSON.stringify({ theme: 'dark', soundEnabled: false }));
     localStorage.setItem('unrelated', 'keep');
@@ -33,6 +34,7 @@ test('valid older active games resume with migrated counters', async ({ page }) 
     saved.timer = 75;
     saved.status = 'paused';
     localStorage.setItem('squarewise.activeGame.v1', JSON.stringify(saved));
+    sessionStorage.setItem('squarewise.activeGame.v1', JSON.stringify(saved));
   });
   await page.goto('./');
   await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
