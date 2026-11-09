@@ -36,3 +36,15 @@ test('cage descriptions identify member coordinates', async ({ page }) => {
   await page.goto('?scenario=in-progress&difficulty=easy');
   await expect(page.getByRole('gridcell').first()).toHaveAttribute('aria-label', /cage 1, clue .+, cells row 1 column 1/);
 });
+
+test('keyboard hint moves board focus to the cell that receives input', async ({ page }) => {
+  await page.goto('?scenario=in-progress&difficulty=easy');
+  const cells = page.getByRole('gridcell');
+  await cells.last().focus();
+  await page.keyboard.press('h');
+  const target = page.locator('[role="gridcell"][aria-selected="true"]');
+  await expect(cells.last()).not.toBeFocused();
+  await expect(target).toBeFocused();
+  await page.keyboard.press('2');
+  await expect(target).toHaveAttribute('aria-label', /value 2/);
+});

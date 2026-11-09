@@ -73,7 +73,7 @@ export class AccessibleBoard {
     this.updateLiveRegions(snapshot);
     this.previousSnapshot = snapshot;
 
-    const focusTarget = this.pendingFocus ?? focusedCell;
+    const focusTarget = this.pendingFocus ?? (focusedCell ? snapshot.selectedCell ?? focusedCell : null);
     this.pendingFocus = null;
     if (focusTarget) {
       this.getCellButton(focusTarget)?.focus();
