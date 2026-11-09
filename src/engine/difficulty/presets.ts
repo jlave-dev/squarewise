@@ -57,7 +57,7 @@ export const DIFFICULTY_PRESETS: Record<Difficulty, DifficultyPreset> = {
     maxCageSize: 6,
     singleCellRate: 0,
     targetScoreRange: { min: 360, max: 920 },
-    description: 'No single-cell cages.',
+    description: 'Largest board. All four operations.',
   },
 };
 

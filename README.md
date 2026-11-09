@@ -82,6 +82,14 @@ http://localhost:5173/squarewise/?scenario=hint-tier&tier=4&difficulty=easy
 
 The floating debug UI and global debug bridge are intended for development only.
 
+## Puzzle generation compatibility
+
+Dated daily/archive boards explicitly use `generatePuzzleV1`. Its seed format, RNG consumption, presets, cage construction, and acceptance rules are a compatibility contract: retain v1 when introducing a future generator version. Golden hashes cover published sample boards; a date whose original ten attempts all failed now uses the deterministic first valid generated board. Worker timeout never substitutes a different dated board.
+
+Practice, daily, and archive selections generate in a cancellable worker. Practice has a deterministic fallback after 15 seconds; dated timeouts keep a visible retry action. A cancelled request cannot install a later reply or resize the keypad.
+
+Difficulty scores are estimates, not calibrated human ratings or acceptance bands. `singleCellRate` currently enables single-cell growth rather than enforcing a frequency; leftover regions can still be singleton cages at any difficulty, including Expert.
+
 ## Testing
 
 SquareWise uses Vitest for pure logic and integration-style tests, plus Playwright for browser flows. Playwright starts the Vite dev server by default, or uses `PLAYWRIGHT_WEB_SERVER_COMMAND`/`PLAYWRIGHT_BASE_URL` when those environment variables are set.

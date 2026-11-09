@@ -1,4 +1,4 @@
-import type { Puzzle, Cell, Cage, Difficulty, PuzzleConfig } from '../types/puzzle';
+import type { Puzzle, Cell, Cage, Difficulty } from '../types/puzzle';
 import type {
   DailyBadge,
   UserSettings,
@@ -12,8 +12,6 @@ import { StateManager } from './StateManager';
 import { Timer } from '../core/Timer';
 import { UndoStack } from '../core/UndoStack';
 import { Validator } from '../engine/validation/Validator';
-import { generatePuzzle } from '../engine/generator/PuzzleGenerator';
-import { getDifficultyPreset } from '../engine/difficulty/presets';
 import { statsStore } from '../storage/StatsStore';
 import { HintSystem, type HintStep } from '../core/HintSystem';
 import {
@@ -135,33 +133,6 @@ export class Game {
       cages: [],
       solution: [[1,2,3,4],[3,4,1,2],[2,1,4,3],[4,3,2,1]],
     };
-  }
-
-  /**
-   * Start a new game with given difficulty
-   */
-  async startNewGame(difficulty: Difficulty): Promise<void> {
-    console.log('[Game] Starting new game:', difficulty);
-    const preset = getDifficultyPreset(difficulty);
-
-    const config: PuzzleConfig = {
-      size: preset.gridSize,
-      difficulty,
-    };
-
-    console.log('[Game] Generating puzzle...');
-
-    let puzzle: Puzzle;
-    try {
-      puzzle = await generatePuzzle(config);
-    } catch (error) {
-      console.error('[Game] Failed to generate puzzle:', error);
-      alert('Failed to generate puzzle. Please try again.');
-      return;
-    }
-
-    console.log('[Game] Puzzle generated:', puzzle.id, 'size:', puzzle.size, 'cages:', puzzle.cages.length);
-    this.loadPuzzle(puzzle);
   }
 
   /**
