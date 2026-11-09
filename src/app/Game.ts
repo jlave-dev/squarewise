@@ -326,12 +326,9 @@ export class Game {
    */
   private undo(): void {
     if (!this.canInteract()) return;
-    const previousState = this.undoStack.undo();
+    const currentState = this.stateManager.getState();
+    const previousState = this.undoStack.undo(currentState.grid, currentState.notes);
     if (previousState) {
-      // Save current state to redo stack before undoing
-      const currentState = this.stateManager.getState();
-      this.undoStack.saveForRedo(currentState.grid, currentState.notes, previousState.action);
-
       // Restore the previous state
       this.stateManager.restoreState(previousState.grid, previousState.notes);
       this.updateValidationErrors();
@@ -345,7 +342,8 @@ export class Game {
    */
   private redo(): void {
     if (!this.canInteract()) return;
-    const nextState = this.undoStack.redo();
+    const currentState = this.stateManager.getState();
+    const nextState = this.undoStack.redo(currentState.grid, currentState.notes);
     if (nextState) {
       // Restore the next state
       this.stateManager.restoreState(nextState.grid, nextState.notes);

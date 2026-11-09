@@ -22,16 +22,7 @@ export class UndoStack {
    * Push a new state onto the undo stack
    */
   push(grid: number[][], notes: Set<number>[][], action: GameAction): void {
-    // Serialize notes to array for storage
-    const serializedNotes = notes.map(row =>
-      row.map(set => new Set(set))
-    );
-
-    this.undoStack.push({
-      grid: grid.map(row => [...row]),
-      notes: serializedNotes,
-      action,
-    });
+    this.undoStack.push(this.snapshot(grid, notes, action));
 
     // Clear redo stack when new action is performed
     this.redoStack = [];
@@ -46,37 +37,23 @@ export class UndoStack {
    * Undo the last action
    * Returns the previous state or null if no undo available
    */
-  undo(): UndoState | null {
-    if (this.undoStack.length === 0) return null;
-
-    const state = this.undoStack.pop()!;
+  undo(grid: number[][], notes: Set<number>[][]): UndoState | null {
+    const state = this.undoStack.pop();
+    if (!state) return null;
+    this.redoStack.push(this.snapshot(grid, notes, state.action));
     return state;
   }
 
-  /**
-   * Redo the last undone action
-   */
-  redo(): UndoState | null {
-    if (this.redoStack.length === 0) return null;
-
-    const state = this.redoStack.pop()!;
-    this.undoStack.push(state);
+  /** Restore a redo target while preserving the current state for the next undo. */
+  redo(grid: number[][], notes: Set<number>[][]): UndoState | null {
+    const state = this.redoStack.pop();
+    if (!state) return null;
+    this.undoStack.push(this.snapshot(grid, notes, state.action));
     return state;
   }
 
-  /**
-   * Save current state to redo stack (called before undo)
-   */
-  saveForRedo(grid: number[][], notes: Set<number>[][], action: GameAction): void {
-    const serializedNotes = notes.map(row =>
-      row.map(set => new Set(set))
-    );
-
-    this.redoStack.push({
-      grid: grid.map(row => [...row]),
-      notes: serializedNotes,
-      action,
-    });
+  private snapshot(grid: number[][], notes: Set<number>[][], action: GameAction): UndoState {
+    return { grid: grid.map(row => [...row]), notes: notes.map(row => row.map(values => new Set(values))), action };
   }
 
   /**
