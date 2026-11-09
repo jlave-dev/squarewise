@@ -15,6 +15,20 @@ for (const [name, solution] of [['stored', fixture.puzzle.solution], ['alternati
     }, { puzzle: fixture.puzzle, solution });
     await page.goto('./');
     await expect(page.getByRole('grid', { name: 'SquareWise board' })).toBeAttached();
+    if (name === 'alternative') {
+      await page.evaluate(() => {
+        let now = performance.now();
+        const original = performance.now;
+        Object.defineProperty(performance, 'now', { configurable: true, value: () => (now += 100) });
+        try {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }));
+        } finally {
+          Object.defineProperty(performance, 'now', { configurable: true, value: original });
+        }
+      });
+      await expect(page.locator('.hint-panel')).toContainText('Finding a hint took too long');
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem('squarewise.activeGame.v1')!).hintsUsed)).toBe(0);
+    }
     await page.keyboard.press(String(solution[4][0]));
     await expect(page.getByRole('dialog', { name: 'Puzzle Complete' })).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Puzzle Complete' })).toContainText('0 mistakes');

@@ -32,7 +32,8 @@ export type HintReason =
   | 'row-elimination'
   | 'col-elimination'
   | 'cage-constraint'
-  | 'solver-fallback';
+  | 'solver-fallback'
+  | 'unavailable';
 
 export function createEmptyHintUsage(): HintUsage {
   return {
@@ -69,12 +70,12 @@ export class HintSystem {
   /**
    * Get a structured hint tier. Tiers 1-3 never reveal/place a value.
    */
-  getHintStep(grid: number[][], tier: HintTier): HintStep | null {
+  getHintStep(grid: number[][], tier: HintTier, onBudgetExceeded?: () => void): HintStep | null {
     // A local deduction is only useful when the current entries can be completed.
     // Reuse the stored witness when compatible; alternatives require a bounded solve.
     const stored = this.puzzle.solution;
     const solution = grid.every((row, r) => row.every((value, c) => value === 0 || value === stored[r]?.[c])) &&
-      new Validator(this.puzzle).isComplete(stored) ? stored : solvePuzzle(this.puzzle, grid);
+      new Validator(this.puzzle).isComplete(stored) ? stored : solvePuzzle(this.puzzle, grid, undefined, onBudgetExceeded);
     if (!solution) return null;
     const candidate = this.findHintCandidate(grid, solution);
     if (!candidate) return null;

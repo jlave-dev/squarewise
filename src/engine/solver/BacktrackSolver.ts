@@ -106,12 +106,13 @@ function getCageForCell(cages: Cage[], row: number, col: number): Cage | null {
 
 /**
  * Solve a puzzle using backtracking
- * Returns the solution or null if no solution exists
+ * Returns a solution, or null if none was found within the search budget.
  */
 export function solvePuzzle(
   puzzle: Puzzle,
   initialGrid: number[][] = createEmptyGrid(puzzle.size),
-  maxNodes = 20_000
+  maxNodes = 20_000,
+  onBudgetExceeded?: () => void
 ): number[][] | null {
   if (initialGrid.length !== puzzle.size || initialGrid.some(row => row.length !== puzzle.size)) return null;
   const grid = initialGrid.map(row => [...row]);
@@ -128,9 +129,13 @@ export function solvePuzzle(
   if (!puzzle.cages.every(cage => isCageSatisfied(cage, grid, true))) return null;
 
   let nodes = 0;
+  let budgetExceeded = false;
   const deadline = performance.now() + 50;
   function visit(): boolean {
-    if (++nodes > maxNodes || performance.now() >= deadline) return false;
+    if (++nodes > maxNodes || performance.now() >= deadline) {
+      budgetExceeded = true;
+      return false;
+    }
     let next: Cell | null = null;
     let candidates: number[] = [];
     // Most-constrained-first keeps compatible-completion hints bounded.
@@ -157,11 +162,13 @@ export function solvePuzzle(
       grid[next.row][next.col] = value;
       if (visit()) return true;
       grid[next.row][next.col] = 0;
-      if (nodes >= maxNodes) break;
+      if (budgetExceeded) break;
     }
     return false;
   }
-  return visit() ? grid : null;
+  if (visit()) return grid;
+  if (budgetExceeded) onBudgetExceeded?.();
+  return null;
 }
 
 /**

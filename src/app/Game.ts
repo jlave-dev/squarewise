@@ -374,7 +374,21 @@ export class Game {
     if (!this.hintSystem) return;
 
     const state = this.stateManager.getState();
-    const hint = this.hintSystem.getHintStep(state.grid, tier);
+    let budgetExceeded = false;
+    const hint = this.hintSystem.getHintStep(state.grid, tier, () => { budgetExceeded = true; });
+    if (!hint) {
+      this.lastHint = {
+        tier,
+        focus: { cells: [] },
+        reason: 'unavailable',
+        explanation: budgetExceeded
+          ? 'Finding a hint took too long. Fill in another cell and try again.'
+          : 'No hint is available for these entries. Check your numbers and try again.',
+        reveal: false,
+      };
+      this.emitStateChange();
+      return;
+    }
     if (hint) {
       const targetCell = hint.focus.cells[0] ?? null;
       if (targetCell) {
