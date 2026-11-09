@@ -31,7 +31,7 @@ class SettingsStore {
   async load(): Promise<void> {
     const localSettings = this.readLocalSettings();
     if (localSettings) {
-      this.settings = normalizeSettings(localSettings);
+      this.settings = localSettings;
       this.loaded = true;
       this.writeLocalSettings(this.settings);
       this.notifyListeners();
@@ -120,7 +120,8 @@ class SettingsStore {
     try {
       const raw = localStorage.getItem(SETTINGS_LOCAL_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as Partial<UserSettings>;
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
       return normalizeSettings(parsed);
     } catch {
       return null;

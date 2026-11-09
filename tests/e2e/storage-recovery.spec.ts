@@ -39,3 +39,25 @@ test('valid older active games resume with migrated counters', async ({ page }) 
   await expect(page.getByRole('timer')).toContainText('01:15');
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
+
+test('an invalid local settings mirror falls back to saved IndexedDB settings', async ({ page }) => {
+  await page.goto('?scenario=in-progress&difficulty=easy');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('squarewise');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction('settings', 'readwrite');
+        transaction.objectStore('settings').put({ key: 'userSettings', value: { theme: 'dark' } });
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onabort = () => { database.close(); reject(transaction.error); };
+      };
+    });
+    localStorage.setItem('squarewise.userSettings.v1', 'null');
+  });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('squarewise.userSettings.v1')!).theme)).toBe('dark');
+});
