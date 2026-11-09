@@ -200,4 +200,4 @@ For canvas-facing behavior, prefer deterministic state hooks and DOM assertions 
 
 ## License
 
-No license file is currently present in this repository.
+Licensed under [Apache-2.0](LICENSE).
