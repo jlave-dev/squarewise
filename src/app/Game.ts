@@ -740,8 +740,7 @@ export class Game {
   }
 
   private isIncorrectPlacement(cell: Cell, value: number): boolean {
-    const puzzle = this.stateManager.getState().puzzle;
-    return puzzle.solution[cell.row]?.[cell.col] !== value;
+    return this.validator ? !this.validator.isValidMove(this.stateManager.getState().grid, cell, value).valid : false;
   }
 
   /**

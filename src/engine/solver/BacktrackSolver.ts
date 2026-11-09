@@ -1,5 +1,6 @@
 import type { Puzzle, Cage, Cell } from '../../types/puzzle';
 import { createEmptyGrid } from '../generator/LatinSquare';
+import { validateClue } from '../generator/ClueCalculator';
 
 /**
  * Check if a value is valid in a cell position
@@ -54,7 +55,7 @@ function isCageSatisfied(
   }
 
   // All cells filled - check full constraint
-  return isFullCageValid(cage, values);
+  return validateClue(cage.clue, values);
 }
 
 /**
@@ -90,37 +91,6 @@ function isPartialCageValid(cage: Cage, values: number[]): boolean {
 }
 
 /**
- * Check if a fully filled cage satisfies its constraint
- */
-function isFullCageValid(cage: Cage, values: number[]): boolean {
-  const { target, operation } = cage.clue;
-
-  switch (operation) {
-    case 'none':
-      return values.length === 1 && values[0] === target;
-
-    case '+':
-      return values.reduce((a, b) => a + b, 0) === target;
-
-    case '-':
-      if (values.length !== 2) return false;
-      return Math.abs(values[0] - values[1]) === target;
-
-    case '×':
-      return values.reduce((a, b) => a * b, 1) === target;
-
-    case '÷':
-      if (values.length !== 2) return false;
-      const larger = Math.max(values[0], values[1]);
-      const smaller = Math.min(values[0], values[1]);
-      return smaller !== 0 && larger / smaller === target;
-
-    default:
-      return false;
-  }
-}
-
-/**
  * Find the cage containing a specific cell
  */
 function getCageForCell(cages: Cage[], row: number, col: number): Cage | null {
@@ -138,48 +108,60 @@ function getCageForCell(cages: Cage[], row: number, col: number): Cage | null {
  * Solve a puzzle using backtracking
  * Returns the solution or null if no solution exists
  */
-export function solvePuzzle(puzzle: Puzzle): number[][] | null {
-  const grid = createEmptyGrid(puzzle.size);
+export function solvePuzzle(
+  puzzle: Puzzle,
+  initialGrid: number[][] = createEmptyGrid(puzzle.size),
+  maxNodes = 20_000
+): number[][] | null {
+  if (initialGrid.length !== puzzle.size || initialGrid.some(row => row.length !== puzzle.size)) return null;
+  const grid = initialGrid.map(row => [...row]);
+  const cages = Array.from({ length: puzzle.size }, (_, row) =>
+    Array.from({ length: puzzle.size }, (_, col) => getCageForCell(puzzle.cages, row, col)));
 
-  if (backtrack(puzzle, grid, 0)) {
-    return grid;
-  }
-
-  return null;
-}
-
-/**
- * Recursive backtracking solver
- */
-function backtrack(puzzle: Puzzle, grid: number[][], cellIndex: number): boolean {
-  const totalCells = puzzle.size * puzzle.size;
-
-  // Base case: all cells filled
-  if (cellIndex >= totalCells) {
-    return true;
-  }
-
-  const row = Math.floor(cellIndex / puzzle.size);
-  const col = cellIndex % puzzle.size;
-
-  // Try each possible value
-  for (let value = 1; value <= puzzle.size; value++) {
-    if (isValidPlacement(grid, row, col, value, puzzle.size)) {
-      grid[row][col] = value;
-
-      // Check cage constraint
-      const cage = getCageForCell(puzzle.cages, row, col);
-      if (cage && isCageSatisfied(cage, grid, true)) {
-        if (backtrack(puzzle, grid, cellIndex + 1)) {
-          return true;
-        }
-      }
-
-      grid[row][col] = 0;
+  for (let row = 0; row < puzzle.size; row++) {
+    for (let col = 0; col < puzzle.size; col++) {
+      const value = grid[row][col];
+      if (!Number.isInteger(value) || value < 0 || value > puzzle.size) return null;
+      if (value && !isValidPlacement(grid, row, col, value, puzzle.size)) return null;
     }
   }
+  if (!puzzle.cages.every(cage => isCageSatisfied(cage, grid, true))) return null;
 
-  return false;
+  let nodes = 0;
+  const deadline = performance.now() + 50;
+  function visit(): boolean {
+    if (++nodes > maxNodes || performance.now() >= deadline) return false;
+    let next: Cell | null = null;
+    let candidates: number[] = [];
+    // Most-constrained-first keeps compatible-completion hints bounded.
+    for (let row = 0; row < puzzle.size; row++) {
+      for (let col = 0; col < puzzle.size; col++) {
+        if (grid[row][col]) continue;
+        const values: number[] = [];
+        for (let value = 1; value <= puzzle.size; value++) {
+          if (!isValidPlacement(grid, row, col, value, puzzle.size)) continue;
+          grid[row][col] = value;
+          const cage = cages[row][col];
+          if (cage && isCageSatisfied(cage, grid, true)) values.push(value);
+          grid[row][col] = 0;
+        }
+        if (values.length === 0) return false;
+        if (!next || values.length < candidates.length) {
+          next = { row, col };
+          candidates = values;
+        }
+      }
+    }
+    if (!next) return true;
+    for (const value of candidates) {
+      grid[next.row][next.col] = value;
+      if (visit()) return true;
+      grid[next.row][next.col] = 0;
+      if (nodes >= maxNodes) break;
+    }
+    return false;
+  }
+  return visit() ? grid : null;
 }
 
 /**
