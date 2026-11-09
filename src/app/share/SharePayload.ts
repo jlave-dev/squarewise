@@ -57,6 +57,10 @@ export function formatHintResult(stats: WinShareStats): string {
   return `${formatHints(stats.hintsUsed)}, no reveals`;
 }
 
+export function getCanonicalAppUrl(pageUrl: string, basePath: string): string {
+  return new URL(basePath, new URL(pageUrl).origin).href;
+}
+
 export function buildWinSharePayload(stats: WinShareStats, pageUrl: string): SharePayload {
   const puzzleLabel = stats.mode === 'daily' && stats.date
     ? `the daily ${stats.date}`

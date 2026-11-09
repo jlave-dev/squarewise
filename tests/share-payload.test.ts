@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { buildWinSharePayload } from '../src/app/share/SharePayload';
+import { buildWinSharePayload, getCanonicalAppUrl } from '../src/app/share/SharePayload';
 
 test('buildWinSharePayload produces deterministic title text and url', () => {
   const payload = buildWinSharePayload(
@@ -120,4 +120,9 @@ test('buildWinSharePayload includes committed mistake count when provided', () =
   );
 
   assert.match(payload.text, /1 hint, 2 mistakes/);
+});
+
+test('canonical app URL supports project and root deployments without diagnostics', () => {
+  assert.equal(getCanonicalAppUrl('https://example.com/squarewise/?scenario=won#debug', '/squarewise/'), 'https://example.com/squarewise/');
+  assert.equal(getCanonicalAppUrl('https://example.com/?scenario=won#debug', '/'), 'https://example.com/');
 });
