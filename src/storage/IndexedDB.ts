@@ -208,13 +208,3 @@ export const getStat = <T>(key: string, defaultValue: T): Promise<T> =>
 
 export const setStat = <T>(key: string, value: T): Promise<void> =>
   db.set('stats', key, value);
-
-export const saveGame = (key: string, state: unknown): Promise<void> =>
-  db.set('savedGames', key, state);
-
-export async function loadGame<T>(key: string): Promise<T | null> {
-  return db.get('savedGames', key) as Promise<T | null>;
-}
-
-export const deleteSavedGame = (key: string): Promise<void> =>
-  db.delete('savedGames', key);

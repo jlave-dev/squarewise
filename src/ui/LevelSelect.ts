@@ -11,6 +11,7 @@ type ArchiveSelectCallback = (date: string, difficulty: Difficulty) => void;
  */
 export class LevelSelect {
   private modal: Modal;
+  private displayedDate = formatLocalDate(new Date());
   private onDifficultySelect?: DifficultySelectCallback;
   private onDailyChallenge?: () => void;
   private onTutorial?: () => void;
@@ -18,12 +19,15 @@ export class LevelSelect {
 
   constructor() {
     this.modal = new Modal();
+    document.addEventListener('visibilitychange', () => this.refreshDate());
+    this.scheduleDateRefresh();
   }
 
   /**
    * Show the level select modal
    */
   show(): void {
+    this.displayedDate = formatLocalDate(new Date());
     this.modal.clear();
     this.modal.setTitle('Select Puzzle');
 
@@ -31,6 +35,29 @@ export class LevelSelect {
     this.modal.setContent(content);
 
     this.modal.open();
+  }
+
+  private scheduleDateRefresh(): void {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    window.setTimeout(() => {
+      this.refreshDate();
+      this.scheduleDateRefresh();
+    }, midnight.getTime() - now.getTime() + 50);
+  }
+
+  private refreshDate(): void {
+    const today = formatLocalDate(new Date());
+    if (today === this.displayedDate || !this.modal.isOpen()) return;
+    this.displayedDate = today;
+    const root = this.modal.getContentElement();
+    const controls = Array.from(root.querySelectorAll<HTMLElement>('button, summary'));
+    const focusIndex = controls.indexOf(document.activeElement as HTMLElement);
+    const archiveOpen = root.querySelector('details')?.open ?? false;
+    this.modal.setContent(this.createContent());
+    const archive = root.querySelector('details');
+    if (archive) archive.open = archiveOpen;
+    if (focusIndex >= 0) root.querySelectorAll<HTMLElement>('button, summary')[focusIndex]?.focus();
   }
 
   private createContent(): HTMLElement {

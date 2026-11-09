@@ -102,34 +102,6 @@ export class CanvasRenderer {
   }
 
   /**
-   * Update the player's grid state
-   */
-  updateGrid(grid: number[][]): void {
-    this.grid = grid;
-  }
-
-  /**
-   * Set the selected cell for highlighting
-   */
-  setSelectedCell(cell: { row: number; col: number } | null): void {
-    this.renderState = {
-      ...this.renderState,
-      selectedCell: cell,
-    };
-  }
-
-  /**
-   * Set cells currently marked as validation errors
-   */
-  setErrorCells(cells: Cell[]): void {
-    this.errorCells = new Set(cells.map((cell) => `${cell.row},${cell.col}`));
-    this.renderState = {
-      ...this.renderState,
-      errors: cells.map((cell) => ({ ...cell })),
-    };
-  }
-
-  /**
    * Provide all contextual state needed to render board affordances.
    */
   setRenderState(state: BoardRenderState): void {
@@ -145,23 +117,6 @@ export class CanvasRenderer {
       errors: state.errors.map((cell) => ({ ...cell })),
     };
     this.errorCells = new Set(state.errors.map((cell) => `${cell.row},${cell.col}`));
-  }
-
-  /**
-   * Test/debug snapshot of the visible render contract.
-   */
-  getRenderStateSnapshot(): BoardRenderState {
-    return {
-      selectedCell: this.renderState.selectedCell ? { ...this.renderState.selectedCell } : null,
-      selectedNumber: this.renderState.selectedNumber,
-      selectedCageId: this.renderState.selectedCageId,
-      relatedCells: this.renderState.relatedCells.map((cell) => ({ ...cell })),
-      selectedCageCells: this.renderState.selectedCageCells.map((cell) => ({ ...cell })),
-      matchingValueCells: this.renderState.matchingValueCells.map((cell) => ({ ...cell })),
-      matchingNoteCells: this.renderState.matchingNoteCells.map((cell) => ({ ...cell })),
-      notesMode: this.renderState.notesMode,
-      errors: this.renderState.errors.map((cell) => ({ ...cell })),
-    };
   }
 
   /**
@@ -630,44 +585,6 @@ export class CanvasRenderer {
       this.ctx.quadraticCurveTo(x, y, x + r, y);
     }
     this.ctx.stroke();
-  }
-
-  /**
-   * Get cell from pixel coordinates
-   */
-  getCellFromPoint(x: number, y: number): { row: number; col: number } | null {
-    if (!this.puzzle) return null;
-
-    const { originX, originY } = this.getOrigin();
-    const col = Math.floor((x - originX) / this.config.cellSize);
-    const row = Math.floor((y - originY) / this.config.cellSize);
-
-    if (row >= 0 && row < this.puzzle.size && col >= 0 && col < this.puzzle.size) {
-      return { row, col };
-    }
-    return null;
-  }
-
-  /**
-   * Highlight a selected cell
-   */
-  highlightCell(row: number, col: number, color: string): void {
-    const { x, y } = this.getCellPosition(row, col);
-    this.ctx.fillStyle = color;
-    this.ctx.fillRect(x, y, this.config.cellSize, this.config.cellSize);
-  }
-
-  /**
-   * Draw a visible selection border around a cell
-   */
-  drawSelectionBorder(row: number, col: number): void {
-    const { x, y } = this.getCellPosition(row, col);
-    const borderColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--focus-ring').trim() || '#6366F1';
-
-    this.ctx.strokeStyle = borderColor;
-    this.ctx.lineWidth = 3;
-    this.ctx.strokeRect(x + 1, y + 1, this.config.cellSize - 2, this.config.cellSize - 2);
   }
 
   /**
