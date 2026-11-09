@@ -5,7 +5,9 @@ import { getDifficulties } from '../engine/difficulty/presets';
 
 const ACTIVE_GAME_KEY = 'squarewise.activeGame.v1';
 const OWNER_KEY = 'squarewise.activeGame.owner';
-const ownerId = crypto.randomUUID();
+const ownerId = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte =>
+  byte.toString(16).padStart(2, '0')
+).join('');
 
 type PersistableStatus = Extract<GameStatus, 'playing' | 'paused'>;
 

@@ -111,3 +111,11 @@ test('local streak boundaries survive UTC midnight, missed days, and spring DST'
   await page.getByRole('button', { name: 'Statistics' }).click();
   await expect(page.getByText('Streak', { exact: true }).locator('..').locator('div').first()).toHaveText('0');
 });
+
+test('app starts when secure-context UUID generation is unavailable', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined });
+  });
+  await page.goto('?scenario=in-progress&difficulty=easy');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
+});
