@@ -87,7 +87,6 @@ export class InputHandler {
   private setupEventListeners(): void {
     // Mouse events
     this.canvas.addEventListener('click', this.handleMouseClick);
-    this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
 
     // Keyboard events
     document.addEventListener('keydown', this.handleKeyDown);
@@ -97,17 +96,6 @@ export class InputHandler {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
-    this.handlePointInput(x, y);
-  };
-
-  private handleTouchStart = (e: TouchEvent): void => {
-    e.preventDefault();
-    if (e.touches.length === 0) return;
-    const touch = e.touches[0];
-    const rect = this.canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
 
     this.handlePointInput(x, y);
   };
@@ -258,7 +246,6 @@ export class InputHandler {
    */
   destroy(): void {
     this.canvas.removeEventListener('click', this.handleMouseClick);
-    this.canvas.removeEventListener('touchstart', this.handleTouchStart);
     document.removeEventListener('keydown', this.handleKeyDown);
   }
 }
