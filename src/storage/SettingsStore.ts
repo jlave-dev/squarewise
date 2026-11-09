@@ -171,12 +171,14 @@ class SettingsStore {
 // Singleton instance
 export const settingsStore = new SettingsStore();
 
-function normalizeSettings(settings: Partial<UserSettings>): UserSettings {
-  const theme = settings.theme === 'dark' ? 'dark' : 'light';
-
+export function normalizeSettings(value: unknown): UserSettings {
+  const settings = value && typeof value === 'object' ? value as Partial<UserSettings> : {};
   return {
-    ...DEFAULT_SETTINGS,
-    ...settings,
-    theme,
+    theme: settings.theme === 'dark' ? 'dark' : 'light',
+    showTimer: typeof settings.showTimer === 'boolean' ? settings.showTimer : DEFAULT_SETTINGS.showTimer,
+    showErrors: typeof settings.showErrors === 'boolean' ? settings.showErrors : DEFAULT_SETTINGS.showErrors,
+    soundEnabled: typeof settings.soundEnabled === 'boolean' ? settings.soundEnabled : DEFAULT_SETTINGS.soundEnabled,
+    hapticFeedback: typeof settings.hapticFeedback === 'boolean' ? settings.hapticFeedback : DEFAULT_SETTINGS.hapticFeedback,
+    autoRemoveNotes: typeof settings.autoRemoveNotes === 'boolean' ? settings.autoRemoveNotes : DEFAULT_SETTINGS.autoRemoveNotes,
   };
 }

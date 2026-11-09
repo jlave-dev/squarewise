@@ -186,37 +186,44 @@ export class Game {
     const snapshot = loadActiveGame();
     if (!snapshot) return false;
 
-    console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
-    this.preparePuzzle(snapshot.puzzle);
+    try {
+      console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
+      this.preparePuzzle(snapshot.puzzle);
 
-    const notes = snapshot.notes.map((row) =>
-      row.map((cellNotes) => new Set(cellNotes))
-    );
+      const notes = snapshot.notes.map((row) =>
+        row.map((cellNotes) => new Set(cellNotes))
+      );
 
-    this.stateManager.restoreSession({
-      grid: snapshot.grid,
-      notes,
-      selectedCell: snapshot.selectedCell,
-      status: snapshot.status,
-      timer: snapshot.timer,
-      hintsUsed: snapshot.hintsUsed,
-      hintUsage: snapshot.hintUsage,
-      mistakeCount: snapshot.mistakeCount,
-    });
+      this.stateManager.restoreSession({
+        grid: snapshot.grid,
+        notes,
+        selectedCell: snapshot.selectedCell,
+        status: snapshot.status,
+        timer: snapshot.timer,
+        hintsUsed: snapshot.hintsUsed,
+        hintUsage: snapshot.hintUsage,
+        mistakeCount: snapshot.mistakeCount,
+      });
 
-    this.timer.setElapsed(snapshot.timer);
-    this.notesMode = snapshot.notesMode;
+      this.timer.setElapsed(snapshot.timer);
+      this.notesMode = snapshot.notesMode;
 
-    if (snapshot.status === 'playing') {
-      this.timer.start();
-    } else {
+      if (snapshot.status === 'playing') {
+        this.timer.start();
+      } else {
+        this.timer.pause();
+      }
+
+      this.updateValidationErrors();
+      this.callbacks.onTimerUpdate?.(snapshot.timer);
+      this.render();
+      return true;
+    } catch {
       this.timer.pause();
+      this.preparePuzzle(this.createPlaceholderPuzzle());
+      clearActiveGame();
+      return false;
     }
-
-    this.updateValidationErrors();
-    this.callbacks.onTimerUpdate?.(snapshot.timer);
-    this.render();
-    return true;
   }
 
   /**
