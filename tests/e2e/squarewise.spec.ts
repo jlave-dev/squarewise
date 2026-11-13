@@ -60,6 +60,7 @@ test('desktop play exposes input controls and a keyboard entry point', async ({ 
 
 test('desktop expert board fits with the header and keypad', async ({ page }) => {
   await page.goto('?scenario=in-progress&difficulty=expert');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
 
   const layout = await page.evaluate(() => {
     const canvas = document.querySelector('canvas')?.getBoundingClientRect();
