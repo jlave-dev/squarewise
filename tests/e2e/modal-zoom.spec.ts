@@ -42,10 +42,17 @@ test('expert board permits browser zoom and touch selection', async ({ browser, 
   await cdp.send('Input.synthesizeScrollGesture', {
     x: 150, y: 350, xDistance: 0, yDistance: -550, gestureSourceType: 'touch', speed: 1000,
   });
-  await expect.poll(() => page.evaluate(() => visualViewport!.offsetTop)).toBeGreaterThan(0);
+  // Panning can move the layout viewport, visual viewport, or both.
+  // Verify that the keypad reaches the visible viewport instead of requiring
+  // one particular scroll offset to change.
+  const keypad = page.getByRole('button', { name: '1', exact: true });
+  await expect.poll(() => keypad.evaluate(button => {
+    const rect = button.getBoundingClientRect();
+    return rect.top + rect.height / 2 - visualViewport!.offsetTop;
+  })).toBeLessThan(await page.evaluate(() => visualViewport!.height));
   // Locator hit testing uses layout coordinates after visual-viewport panning.
   // Dispatch an actual touch at the button's visible CSS coordinates instead.
-  const point = await page.getByRole('button', { name: '1', exact: true }).evaluate(button => {
+  const point = await keypad.evaluate(button => {
     const rect = button.getBoundingClientRect();
     const viewport = visualViewport!;
     return {
