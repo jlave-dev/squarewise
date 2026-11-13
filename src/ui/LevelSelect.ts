@@ -157,6 +157,7 @@ export class LevelSelect {
   }
 
   private showRules(): void {
+    this.showingChoices = false;
     this.modal.clear();
     this.modal.setTitle('Rules');
     const content = document.createElement('div');
