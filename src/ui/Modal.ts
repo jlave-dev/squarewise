@@ -4,13 +4,30 @@
 let modalTitleIdCounter = 0;
 
 export class Modal {
+  private static stack: Modal[] = [];
+  private static backgroundInert = new Map<HTMLElement, boolean>();
+
+  private static syncBackground(): void {
+    const top = Modal.stack.at(-1);
+    if (!top) {
+      for (const [element, inert] of Modal.backgroundInert) element.inert = inert;
+      Modal.backgroundInert.clear();
+      return;
+    }
+    for (const child of document.body.children) {
+      if (!(child instanceof HTMLElement)) continue;
+      if (!Modal.backgroundInert.has(child)) Modal.backgroundInert.set(child, child.inert);
+      child.inert = child !== top.overlay;
+    }
+  }
+
   private overlay: HTMLDivElement;
   private content: HTMLDivElement;
   private visible: boolean = false;
   private onClose: (() => void) | null = null;
   private previouslyFocusedElement: HTMLElement | null = null;
   private readonly handleDocumentKeyDown = (e: KeyboardEvent): void => {
-    if (!this.visible) return;
+    if (!this.visible || Modal.stack.at(-1) !== this) return;
 
     if (e.key === 'Escape') {
       this.close();
@@ -116,10 +133,13 @@ export class Modal {
    * Show the modal
    */
   open(): void {
+    if (this.visible) return;
     this.previouslyFocusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
     this.visible = true;
+    Modal.stack.push(this);
+    Modal.syncBackground();
     this.overlay.removeAttribute('aria-hidden');
     this.overlay.style.display = 'flex';
     this.overlay.style.pointerEvents = 'auto';
@@ -140,6 +160,8 @@ export class Modal {
     this.overlay.classList.remove('visible');
     this.overlay.style.pointerEvents = 'none';
     this.visible = false;
+    Modal.stack = Modal.stack.filter(modal => modal !== this);
+    Modal.syncBackground();
     this.restoreFocus();
     this.overlay.setAttribute('aria-hidden', 'true');
 
@@ -195,7 +217,7 @@ export class Modal {
   }
 
   private focusInitialElement(): void {
-    if (!this.visible) return;
+    if (!this.visible || Modal.stack.at(-1) !== this) return;
 
     const focusable = this.getFocusableElements();
     (focusable[0] ?? this.content).focus();
@@ -221,13 +243,13 @@ export class Modal {
     const last = focusable[focusable.length - 1];
     const active = document.activeElement;
 
-    if (event.shiftKey && active === first) {
+    if (event.shiftKey && (active === first || !focusable.includes(active as HTMLElement))) {
       event.preventDefault();
       last.focus();
       return;
     }
 
-    if (!event.shiftKey && active === last) {
+    if (!event.shiftKey && (active === last || !focusable.includes(active as HTMLElement))) {
       event.preventDefault();
       first.focus();
     }
@@ -237,6 +259,7 @@ export class Modal {
     const selector = [
       'button:not([disabled])',
       'a[href]',
+      'summary',
       'input:not([disabled])',
       'select:not([disabled])',
       'textarea:not([disabled])',
@@ -244,6 +267,13 @@ export class Modal {
     ].join(',');
 
     return Array.from(this.content.querySelectorAll<HTMLElement>(selector))
-      .filter((element) => !element.hasAttribute('hidden') && element.tabIndex !== -1);
+      .filter((element) => {
+        if (element.tabIndex < 0 || element.closest('[inert]') || !element.checkVisibility()) return false;
+        for (let ancestor = element.parentElement; ancestor && ancestor !== this.content; ancestor = ancestor.parentElement) {
+          if (ancestor instanceof HTMLDetailsElement && !ancestor.open &&
+              !ancestor.querySelector(':scope > summary')?.contains(element)) return false;
+        }
+        return getComputedStyle(element).visibility === 'visible';
+      });
   }
 }
