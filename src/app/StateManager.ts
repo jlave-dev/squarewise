@@ -229,16 +229,6 @@ export class StateManager {
       if (row !== cell.row) affected.add(`${row},${cell.col}`);
     }
 
-    const cage = this.state.puzzle.cages.find((candidate) =>
-      candidate.cells.some((cageCell) => cageCell.row === cell.row && cageCell.col === cell.col)
-    );
-    if (cage) {
-      for (const cageCell of cage.cells) {
-        if (cageCell.row === cell.row && cageCell.col === cell.col) continue;
-        affected.add(`${cageCell.row},${cageCell.col}`);
-      }
-    }
-
     return affected;
   }
 
@@ -247,7 +237,7 @@ export class StateManager {
    */
   updateTimer(seconds: number): void {
     if (this.state.timer === seconds) return;
-    this.updateState({ timer: seconds }, 'timer:update');
+    this.state = { ...this.state, timer: seconds };
   }
 
   /**

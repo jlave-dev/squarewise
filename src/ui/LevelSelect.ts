@@ -11,6 +11,8 @@ type ArchiveSelectCallback = (date: string, difficulty: Difficulty) => void;
  */
 export class LevelSelect {
   private modal: Modal;
+  private displayedDate = formatLocalDate(new Date());
+  private showingChoices = false;
   private onDifficultySelect?: DifficultySelectCallback;
   private onDailyChallenge?: () => void;
   private onTutorial?: () => void;
@@ -18,12 +20,16 @@ export class LevelSelect {
 
   constructor() {
     this.modal = new Modal();
+    document.addEventListener('visibilitychange', () => this.refreshDate());
+    this.scheduleDateRefresh();
   }
 
   /**
    * Show the level select modal
    */
   show(error?: string): void {
+    this.showingChoices = true;
+    this.displayedDate = formatLocalDate(new Date());
     this.modal.setOnClose(() => {});
     this.modal.clear();
     this.modal.setTitle('Select Puzzle');
@@ -37,10 +43,35 @@ export class LevelSelect {
     }
     this.modal.setContent(content);
 
-    this.modal.open();
+    if (!this.modal.isOpen()) this.modal.open();
+    else this.modal.getContentElement().querySelector<HTMLElement>('button')?.focus();
+  }
+
+  private scheduleDateRefresh(): void {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    window.setTimeout(() => {
+      this.refreshDate();
+      this.scheduleDateRefresh();
+    }, midnight.getTime() - now.getTime() + 50);
+  }
+
+  private refreshDate(): void {
+    const today = formatLocalDate(new Date());
+    if (today === this.displayedDate || !this.modal.isOpen() || !this.showingChoices) return;
+    this.displayedDate = today;
+    const root = this.modal.getContentElement();
+    const controls = Array.from(root.querySelectorAll<HTMLElement>('button, summary'));
+    const focusIndex = controls.indexOf(document.activeElement as HTMLElement);
+    const archiveOpen = root.querySelector('details')?.open ?? false;
+    this.modal.setContent(this.createContent());
+    const archive = root.querySelector('details');
+    if (archive) archive.open = archiveOpen;
+    if (focusIndex >= 0) root.querySelectorAll<HTMLElement>('button, summary')[focusIndex]?.focus();
   }
 
   showLoading(onCancel: () => void): void {
+    this.showingChoices = false;
     this.modal.clear().setTitle('Preparing puzzle');
     const message = document.createElement('p');
     message.setAttribute('role', 'status');
@@ -74,7 +105,16 @@ export class LevelSelect {
       container.appendChild(this.createDifficultyButton(difficulty));
     }
 
-    container.appendChild(this.createTutorialButton());
+    const help = document.createElement('div');
+    help.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 8px';
+    help.appendChild(this.createTutorialButton());
+    const rules = document.createElement('button');
+    rules.className = 'btn btn-secondary';
+    rules.type = 'button';
+    rules.textContent = 'Rules';
+    rules.addEventListener('click', () => this.showRules());
+    help.appendChild(rules);
+    container.appendChild(help);
     container.appendChild(this.createArchiveSection());
 
     return container;
@@ -114,6 +154,27 @@ export class LevelSelect {
       this.onTutorial?.();
     });
     return btn;
+  }
+
+  private showRules(): void {
+    this.showingChoices = false;
+    this.modal.clear();
+    this.modal.setTitle('Rules');
+    const content = document.createElement('div');
+    content.style.cssText = 'display: grid; gap: 12px; line-height: 1.5';
+    for (const text of [
+      'Fill each row and column with 1 through the board size, using every number once.',
+      'Each outlined cage must match its clue. Add for + and multiply for ×. A one-cell cage gives its value.',
+      'For −, subtract the smaller number from the larger: 5 − 2 = 3. For ÷, divide the larger by the smaller: 6 ÷ 2 = 3. Cell order does not matter.',
+      'Numbers may repeat within a cage when they are in different rows and columns.',
+      'Turn Notes on to add or remove candidate numbers. Turn it off to enter a final value.',
+    ]) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = text;
+      content.appendChild(paragraph);
+    }
+    this.modal.setContent(content);
+    this.modal.addButton('Back', () => this.show(), 'secondary').focus();
   }
 
   private createArchiveSection(): HTMLElement {

@@ -572,16 +572,6 @@ body::before {
   border-top: 1px solid rgba(11, 27, 52, 0.1);
 }
 
-.number-pad-notes-group {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px;
-  border: 1px solid rgba(11, 27, 52, 0.12);
-  border-radius: 18px;
-  overflow: hidden;
-  background: var(--surface-glass);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
-}
 
 .number-pad-action-btn {
   min-height: 48px;
@@ -607,22 +597,12 @@ body::before {
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease, transform 140ms var(--ease-out);
 }
 
-.number-pad-notes-group .number-pad-action-btn {
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-}
 
 .number-pad-action-btn--notes {
+  border: 1px solid rgba(11, 27, 52, 0.12);
   justify-content: center;
 }
 
-.number-pad-action-btn--grid {
-  border-left: 1px solid rgba(11, 27, 52, 0.14);
-  color: var(--text-secondary);
-  font-size: 1.18rem;
-  padding: 0;
-}
 
 .number-pad-action-btn:hover {
   background: var(--control-bg-hover);
@@ -1065,9 +1045,6 @@ body::before {
     border-top: 0;
   }
 
-  .number-pad-notes-group {
-    grid-template-columns: minmax(0, 1fr) 42px;
-  }
 
   .number-pad-action-btn {
     min-height: 44px;
@@ -1337,9 +1314,6 @@ body::before {
     gap: 12px;
   }
 
-  .number-pad-notes-group {
-    grid-template-columns: minmax(0, 1fr) 42px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

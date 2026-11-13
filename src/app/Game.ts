@@ -12,7 +12,7 @@ import { StateManager } from './StateManager';
 import { Timer } from '../core/Timer';
 import { UndoStack } from '../core/UndoStack';
 import { Validator } from '../engine/validation/Validator';
-import { statsStore } from '../storage/StatsStore';
+import { statsStore, type CompletionResult, type RecordingStatus } from '../storage/StatsStore';
 import { HintSystem, type HintStep } from '../core/HintSystem';
 import {
   buildBoardRenderState,
@@ -20,6 +20,7 @@ import {
 } from '../renderer/boardRenderState';
 import {
   clearActiveGame,
+  claimActiveGame,
   loadActiveGame,
   saveActiveGame,
 } from '../storage/ActiveGameStore';
@@ -38,6 +39,7 @@ export interface GameCallbacks {
     puzzleId: string;
     badges: DailyBadge[];
     dailyStreak: number | null;
+    recordingStatus: RecordingStatus;
   }) => void;
   onTimerUpdate?: (elapsed: number) => void;
   onStateChange?: (snapshot: GameSnapshot) => void;
@@ -107,6 +109,7 @@ export class Game {
     const placeholderPuzzle = this.createPlaceholderPuzzle();
     this.stateManager = new StateManager(placeholderPuzzle);
     this.stateUnsubscribe = this.stateManager.subscribe(() => {
+      this.inputHandler?.setSelectedCell(this.stateManager.getState().selectedCell);
       this.persistActiveState();
       this.emitStateChange();
     });
@@ -123,6 +126,8 @@ export class Game {
     });
 
     this.setupResizeHandler();
+    window.addEventListener('pagehide', this.flushSession);
+    document.addEventListener('visibilitychange', this.flushSession);
   }
 
   private createPlaceholderPuzzle(): Puzzle {
@@ -140,7 +145,9 @@ export class Game {
    */
   loadPuzzle(puzzle: Puzzle): void {
     console.log('[Game] Loading puzzle:', puzzle.id);
+    if (this.getPuzzleIdentity(puzzle).mode === 'tutorial') clearActiveGame();
     this.preparePuzzle(puzzle);
+    claimActiveGame();
     this.stateManager.startGame();
     this.timer.start();
     this.callbacks.onTimerUpdate?.(0);
@@ -150,52 +157,80 @@ export class Game {
     console.log('[Game] Puzzle loaded and rendered');
   }
 
+  /** End the current session before returning to the puzzle picker. */
+  endSession(): void {
+    this.timer.reset();
+    this.preparePuzzle(this.createPlaceholderPuzzle());
+    clearActiveGame();
+    this.callbacks.onTimerUpdate?.(0);
+    this.render();
+  }
+
   /**
    * Resume the latest in-progress puzzle from local persistence
    */
   async resumeActiveGame(): Promise<boolean> {
     const snapshot = loadActiveGame();
     if (!snapshot) return false;
-
-    console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
-    this.preparePuzzle(snapshot.puzzle);
-
-    const notes = snapshot.notes.map((row) =>
-      row.map((cellNotes) => new Set(cellNotes))
-    );
-
-    this.stateManager.restoreSession({
-      grid: snapshot.grid,
-      notes,
-      selectedCell: snapshot.selectedCell,
-      status: snapshot.status,
-      timer: snapshot.timer,
-      hintsUsed: snapshot.hintsUsed,
-      hintUsage: snapshot.hintUsage,
-      mistakeCount: snapshot.mistakeCount,
-    });
-
-    this.timer.setElapsed(snapshot.timer);
-    this.notesMode = snapshot.notesMode;
-
-    if (snapshot.status === 'playing') {
-      this.timer.start();
-    } else {
-      this.timer.pause();
+    if (this.getPuzzleIdentity(snapshot.puzzle).mode === 'tutorial') {
+      clearActiveGame();
+      return false;
     }
 
-    this.updateValidationErrors();
-    this.callbacks.onTimerUpdate?.(snapshot.timer);
-    this.render();
-    return true;
+    try {
+      console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
+      this.preparePuzzle(snapshot.puzzle);
+      claimActiveGame();
+
+      const notes = snapshot.notes.map((row) =>
+        row.map((cellNotes) => new Set(cellNotes))
+      );
+
+      this.stateManager.restoreSession({
+        grid: snapshot.grid,
+        notes,
+        selectedCell: snapshot.selectedCell,
+        status: snapshot.status,
+        timer: snapshot.timer,
+        hintsUsed: snapshot.hintsUsed,
+        hintUsage: snapshot.hintUsage,
+        mistakeCount: snapshot.mistakeCount,
+      });
+
+      this.timer.setElapsed(snapshot.timer);
+      this.notesMode = snapshot.notesMode;
+
+      if (snapshot.status === 'playing') {
+        this.timer.start();
+      } else {
+        this.timer.pause();
+      }
+
+      this.updateValidationErrors();
+      this.callbacks.onTimerUpdate?.(snapshot.timer);
+      this.render();
+      return true;
+    } catch {
+      this.timer.pause();
+      this.preparePuzzle(this.createPlaceholderPuzzle());
+      clearActiveGame();
+      return false;
+    }
   }
 
   /**
    * Handle timer tick
    */
+  private flushSession = (): void => {
+    this.stateManager.updateTimer(this.timer.getElapsedSeconds());
+    this.persistActiveState();
+  };
+
   private onTimerTick(elapsed: number): void {
+    if (elapsed === this.stateManager.getState().timer) return;
     this.stateManager.updateTimer(elapsed);
     this.callbacks.onTimerUpdate?.(elapsed);
+    if (elapsed % 15 === 0) this.persistActiveState();
   }
 
   /**
@@ -222,7 +257,7 @@ export class Game {
   /**
    * Handle number input
    */
-  private handleNumberInput(value: number): void {
+  handleNumberInput(value: number): void {
     if (!this.canInteract()) return;
     const cell = this.stateManager.getState().selectedCell;
     if (!cell) return;
@@ -270,7 +305,7 @@ export class Game {
   /**
    * Clear the selected cell
    */
-  private clearCell(): void {
+  clearCell(): void {
     if (!this.canInteract()) return;
     const cell = this.stateManager.getState().selectedCell;
     if (!cell) return;
@@ -295,14 +330,11 @@ export class Game {
   /**
    * Undo last action
    */
-  private undo(): void {
+  undo(): void {
     if (!this.canInteract()) return;
-    const previousState = this.undoStack.undo();
+    const currentState = this.stateManager.getState();
+    const previousState = this.undoStack.undo(currentState.grid, currentState.notes);
     if (previousState) {
-      // Save current state to redo stack before undoing
-      const currentState = this.stateManager.getState();
-      this.undoStack.saveForRedo(currentState.grid, currentState.notes, previousState.action);
-
       // Restore the previous state
       this.stateManager.restoreState(previousState.grid, previousState.notes);
       this.updateValidationErrors();
@@ -314,9 +346,10 @@ export class Game {
   /**
    * Redo last undone action
    */
-  private redo(): void {
+  redo(): void {
     if (!this.canInteract()) return;
-    const nextState = this.undoStack.redo();
+    const currentState = this.stateManager.getState();
+    const nextState = this.undoStack.redo(currentState.grid, currentState.notes);
     if (nextState) {
       // Restore the next state
       this.stateManager.restoreState(nextState.grid, nextState.notes);
@@ -329,7 +362,7 @@ export class Game {
   /**
    * Toggle notes mode
    */
-  private toggleNotesMode(): void {
+  toggleNotesMode(): void {
     if (!this.canInteract()) return;
     this.notesMode = !this.notesMode;
     this.persistActiveState();
@@ -340,7 +373,7 @@ export class Game {
   /**
    * Show a hint
    */
-  private showHint(tier: HintTier = 1): void {
+  showHint(tier: HintTier = 1): void {
     if (!this.canInteract()) return;
     if (!this.hintSystem) return;
 
@@ -398,7 +431,7 @@ export class Game {
   /**
    * Toggle pause
    */
-  private togglePause(): void {
+  togglePause(): void {
     const status = this.stateManager.getStatus();
     if (status === 'playing') {
       this.stateManager.pauseGame();
@@ -428,25 +461,15 @@ export class Game {
     const gridSize = state.puzzle.size;
     const identity = this.getPuzzleIdentity(state.puzzle);
 
-    // Check if this is a new best time
-    const isNewBest = statsStore.isBestTime(difficulty, time);
-    let badges: DailyBadge[] = [];
-    let dailyStreak: number | null = null;
-
-    if (identity.mode === 'daily' && identity.date) {
-      const dailyResult = await statsStore.recordDailyCompletion({
-        date: identity.date,
-        difficulty,
-        puzzleId: state.puzzle.id,
-        time,
-        hintUsage: state.hintUsage,
-        mistakes: state.mistakeCount,
+    let result: CompletionResult;
+    try {
+      result = await statsStore.recordWin({
+        mode: identity.mode, date: identity.date, difficulty, puzzleId: state.puzzle.id,
+        time, hintUsage: state.hintUsage, mistakes: state.mistakeCount,
       });
-      badges = dailyResult.completion.badges;
-      dailyStreak = dailyResult.currentDailyStreak;
+    } catch {
+      result = { recordingStatus: 'save-failed', isNewBest: false, badges: [], dailyStreak: null };
     }
-
-    await statsStore.recordCompletion(difficulty, time, hintsUsed > 0);
 
     // Notify app to show win screen
     this.callbacks.onWin?.({
@@ -456,12 +479,13 @@ export class Game {
       mistakes: state.mistakeCount,
       difficulty,
       gridSize,
-      isNewBest,
+      isNewBest: result.isNewBest,
       mode: identity.mode,
       date: identity.date,
       puzzleId: state.puzzle.id,
-      badges,
-      dailyStreak,
+      badges: result.badges,
+      dailyStreak: result.dailyStreak,
+      recordingStatus: result.recordingStatus,
     });
   }
 
@@ -633,7 +657,7 @@ export class Game {
   private persistActiveState(): void {
     const state = this.stateManager.getState();
 
-    if (state.puzzle.id === 'placeholder') return;
+    if (state.puzzle.id === 'placeholder' || this.getPuzzleIdentity(state.puzzle).mode === 'tutorial') return;
     if (state.status !== 'playing' && state.status !== 'paused') return;
 
     saveActiveGame({
@@ -792,6 +816,9 @@ export class Game {
    * Clean up resources
    */
   destroy(): void {
+    this.flushSession();
+    window.removeEventListener('pagehide', this.flushSession);
+    document.removeEventListener('visibilitychange', this.flushSession);
     this.stateUnsubscribe?.();
     this.persistActiveState();
     this.timer.destroy();
