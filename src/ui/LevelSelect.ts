@@ -70,6 +70,29 @@ export class LevelSelect {
     if (focusIndex >= 0) root.querySelectorAll<HTMLElement>('button, summary')[focusIndex]?.focus();
   }
 
+  private scheduleDateRefresh(): void {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    window.setTimeout(() => {
+      this.refreshDate();
+      this.scheduleDateRefresh();
+    }, midnight.getTime() - now.getTime() + 50);
+  }
+
+  private refreshDate(): void {
+    const today = formatLocalDate(new Date());
+    if (today === this.displayedDate || !this.modal.isOpen() || !this.showingChoices) return;
+    this.displayedDate = today;
+    const root = this.modal.getContentElement();
+    const controls = Array.from(root.querySelectorAll<HTMLElement>('button, summary'));
+    const focusIndex = controls.indexOf(document.activeElement as HTMLElement);
+    const archiveOpen = root.querySelector('details')?.open ?? false;
+    this.modal.setContent(this.createContent());
+    const archive = root.querySelector('details');
+    if (archive) archive.open = archiveOpen;
+    if (focusIndex >= 0) root.querySelectorAll<HTMLElement>('button, summary')[focusIndex]?.focus();
+  }
+
   showLoading(onCancel: () => void): void {
     this.showingChoices = false;
     this.modal.clear().setTitle('Preparing puzzle');
