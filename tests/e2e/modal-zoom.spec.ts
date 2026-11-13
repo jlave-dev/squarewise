@@ -39,8 +39,29 @@ test('expert board permits browser zoom and touch selection', async ({ browser, 
   await canvas.tap({ position: { x: 68, y: 28 } });
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-col', '1');
   await page.screenshot({ path: 'outputs/audit/expert-zoom.png' });
-  await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
-  await page.getByRole('button', { name: '1', exact: true }).tap();
+  await cdp.send('Input.synthesizeScrollGesture', {
+    x: 150, y: 350, xDistance: 0, yDistance: -550, gestureSourceType: 'touch', speed: 1000,
+  });
+  await expect.poll(() => page.evaluate(() => visualViewport!.offsetTop)).toBeGreaterThan(0);
+  // Locator hit testing uses layout coordinates after visual-viewport panning.
+  // Dispatch an actual touch at the button's visible CSS coordinates instead.
+  const point = await page.getByRole('button', { name: '1', exact: true }).evaluate(button => {
+    const rect = button.getBoundingClientRect();
+    const viewport = visualViewport!;
+    return {
+      x: rect.left + rect.width / 2 - viewport.offsetLeft,
+      y: rect.top + rect.height / 2 - viewport.offsetTop,
+      width: viewport.width,
+      height: viewport.height,
+    };
+  });
+  expect(point.x).toBeGreaterThan(0);
+  expect(point.x).toBeLessThan(point.width);
+  expect(point.y).toBeGreaterThan(0);
+  expect(point.y).toBeLessThan(point.height);
+  await page.touchscreen.tap(point.x, point.y);
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-value', '1');
+  expect(await page.evaluate(() => visualViewport!.scale)).toBe(2);
+  await page.screenshot({ path: 'outputs/audit/expert-zoom-keypad.png' });
   await context.close();
 });
