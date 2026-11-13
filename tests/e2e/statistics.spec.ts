@@ -45,8 +45,10 @@ test('two tabs retain both completions, including after reload and replay', asyn
 
 test('each tab resumes its own board and background writes do not replace the shared owner', async ({ page, context }) => {
   await page.goto('?scenario=in-progress&difficulty=easy');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
   const second = await context.newPage();
   await second.goto('?scenario=in-progress&difficulty=beginner');
+  await expect(second.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
   const secondId = await second.locator('#sw-state-probe').getAttribute('data-puzzle-id');
   await page.keyboard.press('1');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('squarewise.activeGame.v1')!).puzzle.id)).toBe(secondId);
@@ -101,6 +103,7 @@ test('local streak boundaries survive UTC midnight, missed days, and spring DST'
   ].entries()) {
     await page.clock.setFixedTime(new Date(instant));
     await page.goto('?scenario=almost-won&difficulty=easy');
+    await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
     await page.goto('./manifest.json');
     await page.evaluate(index => {
       const saved = JSON.parse(sessionStorage.getItem('squarewise.activeGame.v1')!);
