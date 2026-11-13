@@ -15,7 +15,8 @@ import { AccessibleBoard } from './ui/AccessibleBoard';
 import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
 import { clearActiveGame } from './storage/ActiveGameStore';
-import { dailyChallenge } from './core/DailyChallenge';
+import { dailyChallenge, formatLocalDate } from './core/DailyChallenge';
+import { generatePuzzleInWorker, type PuzzleRequest } from './engine/generator/PuzzleWorker';
 import { buildWinSharePayload } from './app/share/SharePayload';
 import { ShareService } from './app/share/ShareService';
 import { generatePuzzle } from './engine/generator/PuzzleGenerator';
@@ -58,6 +59,7 @@ class SquareWiseApp {
   private shareService: ShareService;
   private debugPanelEl: HTMLDivElement | null = null;
   private tutorialController: TutorialController;
+  private generationController: AbortController | null = null;
 
   constructor() {
     this.canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -218,41 +220,50 @@ class SquareWiseApp {
   }
 
   private async startNewGame(difficulty: Difficulty): Promise<void> {
-    console.log('[SquareWise] Starting new game with difficulty:', difficulty);
-    if (!this.game) return;
-
-    this.numberPad.setGridSize(getDifficultyPreset(difficulty).gridSize);
-    await this.game.startNewGame(difficulty);
-    console.log('[SquareWise] Game started');
+    const params = new URLSearchParams(window.location.search);
+    const seed = params.has('scenario') ? params.get('seed') ?? undefined : undefined;
+    await this.startPuzzle({ mode: 'fresh', difficulty, seed });
   }
 
   private async startDailyChallenge(): Promise<void> {
-    console.log('[SquareWise] Starting daily challenge');
-    if (!this.game) return;
-
-    // Use 'medium' difficulty for daily challenge (balanced challenge)
-    const difficulty: Difficulty = 'medium';
-
-    // Generate today's daily puzzle
-    const puzzle = await dailyChallenge.getTodayPuzzle(difficulty);
-    console.log('[SquareWise] Daily puzzle generated:', puzzle.id);
-
-    this.numberPad.setGridSize(puzzle.size);
-    this.game['loadPuzzle'](puzzle);
-    console.log('[SquareWise] Daily challenge started with grid size:', puzzle.size);
+    await this.startPuzzle({ mode: 'daily', date: formatLocalDate(new Date()), difficulty: 'medium' });
   }
 
   private async startArchiveChallenge(date: string, difficulty: Difficulty): Promise<void> {
-    console.log('[SquareWise] Starting archive challenge:', date, difficulty);
-    if (!this.game) return;
+    await this.startPuzzle({ mode: 'archive', date, difficulty });
+  }
 
-    const puzzle = await dailyChallenge.getArchivePuzzleForDate(new Date(`${date}T00:00:00`), difficulty);
-    this.numberPad.setGridSize(puzzle.size);
-    this.game.loadPuzzle(puzzle);
+  private async startPuzzle(request: PuzzleRequest): Promise<void> {
+    if (!this.game) return;
+    this.generationController?.abort();
+    const controller = new AbortController();
+    this.generationController = controller;
+    this.levelSelect.showLoading(() => {
+      controller.abort();
+      if (this.generationController === controller) {
+        this.generationController = null;
+        this.levelSelect.show();
+      }
+    });
+    try {
+      const puzzle = await generatePuzzleInWorker(request, controller.signal);
+      if (controller.signal.aborted || this.generationController !== controller) return;
+      this.game.loadPuzzle(puzzle);
+      this.numberPad.setGridSize(puzzle.size);
+      this.levelSelect.hide();
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        this.levelSelect.show(error instanceof Error ? error.message : 'Could not prepare puzzle. Choose a puzzle to try again.');
+      }
+    } finally {
+      if (this.generationController === controller) this.generationController = null;
+    }
   }
 
   private startTutorial(step: TutorialStepId): void {
     if (!this.game) return;
+    this.generationController?.abort();
+    this.generationController = null;
 
     this.winScreen.hide();
     this.levelSelect.hide();
@@ -685,7 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     if (import.meta.env.PROD) {
-      navigator.serviceWorker.register('/squarewise/sw.js')
+      navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js')
         .then((registration) => {
           console.log('SW registered:', registration.scope);
         })
@@ -695,12 +706,13 @@ if ('serviceWorker' in navigator) {
       return;
     }
 
-    // In development, remove any existing worker/cache to avoid stale source modules.
+    // Remove only SquareWise resources; other apps share this origin.
+    const appScope = new URL(import.meta.env.BASE_URL, window.location.origin).href;
     navigator.serviceWorker.getRegistrations()
-      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+      .then((registrations) => Promise.all(registrations.filter((registration) => registration.scope === appScope).map((registration) => registration.unregister())))
       .then(() => {
         if (!('caches' in window)) return Promise.resolve([]);
-        return caches.keys().then((cacheNames) => Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName))));
+        return caches.keys().then((cacheNames) => Promise.all(cacheNames.filter((cacheName) => cacheName.startsWith('squarewise-')).map((cacheName) => caches.delete(cacheName))));
       })
       .then(() => {
         console.log('Service worker and caches cleared for development mode');

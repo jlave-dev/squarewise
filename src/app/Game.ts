@@ -1,4 +1,4 @@
-import type { Puzzle, Cell, Cage, Difficulty, PuzzleConfig } from '../types/puzzle';
+import type { Puzzle, Cell, Cage, Difficulty } from '../types/puzzle';
 import type {
   DailyBadge,
   UserSettings,
@@ -12,8 +12,6 @@ import { StateManager } from './StateManager';
 import { Timer } from '../core/Timer';
 import { UndoStack } from '../core/UndoStack';
 import { Validator } from '../engine/validation/Validator';
-import { generatePuzzle } from '../engine/generator/PuzzleGenerator';
-import { getDifficultyPreset } from '../engine/difficulty/presets';
 import { statsStore } from '../storage/StatsStore';
 import { HintSystem, type HintStep } from '../core/HintSystem';
 import {
@@ -135,33 +133,6 @@ export class Game {
       cages: [],
       solution: [[1,2,3,4],[3,4,1,2],[2,1,4,3],[4,3,2,1]],
     };
-  }
-
-  /**
-   * Start a new game with given difficulty
-   */
-  async startNewGame(difficulty: Difficulty): Promise<void> {
-    console.log('[Game] Starting new game:', difficulty);
-    const preset = getDifficultyPreset(difficulty);
-
-    const config: PuzzleConfig = {
-      size: preset.gridSize,
-      difficulty,
-    };
-
-    console.log('[Game] Generating puzzle...');
-
-    let puzzle: Puzzle;
-    try {
-      puzzle = await generatePuzzle(config);
-    } catch (error) {
-      console.error('[Game] Failed to generate puzzle:', error);
-      alert('Failed to generate puzzle. Please try again.');
-      return;
-    }
-
-    console.log('[Game] Puzzle generated:', puzzle.id, 'size:', puzzle.size, 'cages:', puzzle.cages.length);
-    this.loadPuzzle(puzzle);
   }
 
   /**
@@ -381,7 +352,21 @@ export class Game {
     if (!this.hintSystem) return;
 
     const state = this.stateManager.getState();
-    const hint = this.hintSystem.getHintStep(state.grid, tier);
+    let budgetExceeded = false;
+    const hint = this.hintSystem.getHintStep(state.grid, tier, () => { budgetExceeded = true; });
+    if (!hint) {
+      this.lastHint = {
+        tier,
+        focus: { cells: [] },
+        reason: 'unavailable',
+        explanation: budgetExceeded
+          ? 'Finding a hint took too long. Fill in another cell and try again.'
+          : 'No hint is available for these entries. Check your numbers and try again.',
+        reveal: false,
+      };
+      this.emitStateChange();
+      return;
+    }
     if (hint) {
       const targetCell = hint.focus.cells[0] ?? null;
       if (targetCell) {
@@ -747,8 +732,7 @@ export class Game {
   }
 
   private isIncorrectPlacement(cell: Cell, value: number): boolean {
-    const puzzle = this.stateManager.getState().puzzle;
-    return puzzle.solution[cell.row]?.[cell.col] !== value;
+    return this.validator ? !this.validator.isValidMove(this.stateManager.getState().grid, cell, value).valid : false;
   }
 
   /**

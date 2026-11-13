@@ -1,4 +1,5 @@
 import type { Difficulty, Puzzle } from '../../types/puzzle';
+import { validateClue } from '../generator/ClueCalculator';
 import { getDifficultyPreset, type DifficultyPreset } from './presets';
 
 export type UniquenessStatus = 'unique' | 'multiple' | 'skipped' | 'unknown';
@@ -244,7 +245,7 @@ function countCageAssignments(cage: Puzzle['cages'][number], size: number, limit
     }
 
     if (index === cage.cells.length) {
-      if (isFullCageAssignmentValid(cage.clue.operation, cage.clue.target, values)) {
+      if (validateClue(cage.clue, values)) {
         count++;
       }
       return;
@@ -279,25 +280,5 @@ function isPartialCageAssignmentViable(
       return product <= target && (product === 0 || target % product === 0);
     default:
       return true;
-  }
-}
-
-function isFullCageAssignmentValid(operation: string, target: number, values: number[]): boolean {
-  switch (operation) {
-    case 'none':
-      return values.length === 1 && values[0] === target;
-    case '+':
-      return values.reduce((sum, value) => sum + value, 0) === target;
-    case '-':
-      return values.length === 2 && Math.abs(values[0] - values[1]) === target;
-    case '×':
-      return values.reduce((product, value) => product * value, 1) === target;
-    case '÷':
-      if (values.length !== 2) return false;
-      const larger = Math.max(values[0], values[1]);
-      const smaller = Math.min(values[0], values[1]);
-      return smaller !== 0 && larger / smaller === target;
-    default:
-      return false;
   }
 }
