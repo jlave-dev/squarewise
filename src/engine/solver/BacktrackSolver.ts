@@ -51,7 +51,7 @@ function isCageSatisfied(
 
   // If there are empty cells, only check partial validity
   if (hasEmpty) {
-    return allowPartial ? isPartialCageValid(cage, values) : true;
+    return allowPartial ? isPartialCageValid(cage, values, grid.length) : true;
   }
 
   // All cells filled - check full constraint
@@ -61,7 +61,7 @@ function isCageSatisfied(
 /**
  * Check if a partially filled cage could still be valid
  */
-function isPartialCageValid(cage: Cage, values: number[]): boolean {
+function isPartialCageValid(cage: Cage, values: number[], size: number): boolean {
   const { target, operation } = cage.clue;
 
   // For partial checks, we just ensure the current values don't violate the constraint
@@ -71,7 +71,8 @@ function isPartialCageValid(cage: Cage, values: number[]): boolean {
 
     case '+':
       const sum = values.reduce((a, b) => a + b, 0);
-      return sum <= target;
+      const remaining = cage.cells.length - values.length;
+      return sum + remaining <= target && sum + remaining * size >= target;
 
     case '-':
       // Can't validate subtraction with partial data
@@ -79,7 +80,7 @@ function isPartialCageValid(cage: Cage, values: number[]): boolean {
 
     case '×':
       const product = values.reduce((a, b) => a * b, 1);
-      return product <= target;
+      return product <= target && target % product === 0;
 
     case '÷':
       // Can't validate division with partial data
@@ -114,7 +115,20 @@ export function solvePuzzle(
   maxNodes = 20_000,
   onBudgetExceeded?: () => void
 ): number[][] | null {
-  if (initialGrid.length !== puzzle.size || initialGrid.some(row => row.length !== puzzle.size)) return null;
+  const result = searchSolutions(puzzle, initialGrid, maxNodes, 50, 1);
+  if (result.exhausted) onBudgetExceeded?.();
+  return result.solution;
+}
+
+function searchSolutions(
+  puzzle: Puzzle,
+  initialGrid: number[][] = createEmptyGrid(puzzle.size),
+  maxNodes: number,
+  maxDurationMs: number,
+  limit: number
+): { solution: number[][] | null; count: number; exhausted: boolean } {
+  const result = { solution: null as number[][] | null, count: 0, exhausted: false };
+  if (initialGrid.length !== puzzle.size || initialGrid.some(row => row.length !== puzzle.size)) return result;
   const grid = initialGrid.map(row => [...row]);
   const cages = Array.from({ length: puzzle.size }, (_, row) =>
     Array.from({ length: puzzle.size }, (_, col) => getCageForCell(puzzle.cages, row, col)));
@@ -122,19 +136,18 @@ export function solvePuzzle(
   for (let row = 0; row < puzzle.size; row++) {
     for (let col = 0; col < puzzle.size; col++) {
       const value = grid[row][col];
-      if (!Number.isInteger(value) || value < 0 || value > puzzle.size) return null;
-      if (value && !isValidPlacement(grid, row, col, value, puzzle.size)) return null;
+      if (!Number.isInteger(value) || value < 0 || value > puzzle.size) return result;
+      if (value && !isValidPlacement(grid, row, col, value, puzzle.size)) return result;
     }
   }
-  if (!puzzle.cages.every(cage => isCageSatisfied(cage, grid, true))) return null;
+  if (!puzzle.cages.every(cage => isCageSatisfied(cage, grid, true))) return result;
 
   let nodes = 0;
-  let budgetExceeded = false;
-  const deadline = performance.now() + 50;
+  const deadline = performance.now() + maxDurationMs;
   function visit(): boolean {
     if (++nodes > maxNodes || performance.now() >= deadline) {
-      budgetExceeded = true;
-      return false;
+      result.exhausted = true;
+      return true;
     }
     let next: Cell | null = null;
     let candidates: number[] = [];
@@ -157,64 +170,27 @@ export function solvePuzzle(
         }
       }
     }
-    if (!next) return true;
+    if (!next) {
+      result.count++;
+      result.solution ??= grid.map(row => [...row]);
+      return result.count >= limit;
+    }
     for (const value of candidates) {
       grid[next.row][next.col] = value;
       if (visit()) return true;
       grid[next.row][next.col] = 0;
-      if (budgetExceeded) break;
+
     }
     return false;
   }
-  if (visit()) return grid;
-  if (budgetExceeded) onBudgetExceeded?.();
-  return null;
+  visit();
+  return result;
 }
 
-/**
- * Check if a puzzle has exactly one solution
- */
+/** Count up to two completions; exact mode preserves the published v1 generator. */
 export async function hasUniqueSolution(puzzle: Puzzle): Promise<boolean> {
-  let solutionCount = 0;
-  const grid = createEmptyGrid(puzzle.size);
-
-  function countSolutions(cellIndex: number): boolean {
-    const totalCells = puzzle.size * puzzle.size;
-
-    if (cellIndex >= totalCells) {
-      solutionCount++;
-      return solutionCount >= 2; // Stop if we find more than one
-    }
-
-    const row = Math.floor(cellIndex / puzzle.size);
-    const col = cellIndex % puzzle.size;
-
-    for (let value = 1; value <= puzzle.size; value++) {
-      if (isValidPlacement(grid, row, col, value, puzzle.size)) {
-        grid[row][col] = value;
-
-        const cage = getCageForCell(puzzle.cages, row, col);
-        if (!cage || isCageSatisfied(cage, grid, true)) {
-          if (countSolutions(cellIndex + 1)) {
-            grid[row][col] = 0;
-            return true; // Found multiple solutions
-          }
-        }
-
-        grid[row][col] = 0;
-      }
-    }
-
-    return false;
-  }
-
-  // Use setTimeout to avoid blocking
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      countSolutions(0);
-      resolve(solutionCount === 1);
-    }, 0);
-  });
+  const result = searchSolutions(puzzle, createEmptyGrid(puzzle.size), Infinity, Infinity, 2);
+  return !result.exhausted && result.count === 1;
 }
 
 /**
