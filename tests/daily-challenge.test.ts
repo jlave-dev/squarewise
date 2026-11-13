@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { DailyChallenge, formatLocalDate } from '../src/core/DailyChallenge';
 
@@ -38,4 +38,19 @@ test('archive puzzle reuses dated daily content with archive identity', async ()
   assert.equal(archivePuzzle.seed, 'archive-2026-06-05-medium');
   assert.deepEqual(archivePuzzle.solution, dailyPuzzle.solution);
   assert.deepEqual(archivePuzzle.cages, dailyPuzzle.cages);
+});
+
+test('today is resolved at request time while existing puzzle identity stays fixed', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(new Date(2026, 5, 5, 23, 55));
+    const daily = new DailyChallenge();
+    const old = await daily.getTodayPuzzle('easy');
+    vi.setSystemTime(new Date(2026, 5, 6, 0, 5));
+    const next = await daily.getTodayPuzzle('easy');
+    assert.equal(old.id, 'daily-2026-06-05-easy-5x5');
+    assert.equal(next.id, 'daily-2026-06-06-easy-5x5');
+  } finally {
+    vi.useRealTimers();
+  }
 });
