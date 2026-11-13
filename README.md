@@ -82,6 +82,14 @@ http://localhost:5173/squarewise/?scenario=hint-tier&tier=4&difficulty=easy
 
 The floating debug UI and global debug bridge are intended for development only.
 
+## Puzzle generation compatibility
+
+Dated daily/archive boards explicitly use `generatePuzzleV1`. Its seed format, RNG consumption, presets, cage construction, and acceptance rules are a compatibility contract: retain v1 when introducing a future generator version. Golden hashes cover published sample boards; a date whose original ten attempts all failed now uses the deterministic first valid generated board. Worker timeout never substitutes a different dated board.
+
+Practice, daily, and archive selections generate in a cancellable worker. Practice has a deterministic fallback after 15 seconds; dated timeouts keep a visible retry action. A cancelled request cannot install a later reply or resize the keypad.
+
+Difficulty scores are estimates, not calibrated human ratings or acceptance bands. `singleCellRate` currently enables single-cell growth rather than enforcing a frequency; leftover regions can still be singleton cages at any difficulty, including Expert.
+
 ## Testing
 
 SquareWise uses Vitest for pure logic and integration-style tests, plus Playwright for browser flows. Playwright starts the Vite dev server by default, or uses `PLAYWRIGHT_WEB_SERVER_COMMAND`/`PLAYWRIGHT_BASE_URL` when those environment variables are set.
@@ -104,6 +112,8 @@ Test coverage focuses on:
 
 ## Deployment and Releases
 
+Pull requests run `.github/workflows/validate.yml` for typecheck, unit tests, build, and production-preview browser tests. Deployment and release reuse the same workflow.
+
 GitHub Pages deployment is defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). On pushes to `main`, the workflow:
 
 1. installs dependencies with `npm ci`
@@ -114,7 +124,7 @@ GitHub Pages deployment is defined in [`.github/workflows/deploy.yml`](.github/w
 6. runs Playwright against `vite preview`
 7. uploads `dist/` to GitHub Pages
 
-Release automation is defined in [`.github/workflows/release.yml`](.github/workflows/release.yml) and [`release.config.cjs`](release.config.cjs). semantic-release creates GitHub releases from conventional commits on `main`. npm publishing is disabled with `npmPublish: false`.
+Release automation is defined in [`.github/workflows/release.yml`](.github/workflows/release.yml) and [`release.config.cjs`](release.config.cjs). semantic-release creates GitHub releases from conventional commits on `main`. npm publishing is disabled by omitting the npm release plugin.
 
 Pull request titles and pushed commits are checked by [`.github/workflows/commit-policy.yml`](.github/workflows/commit-policy.yml) using conventional commit rules from [`commitlint.config.cjs`](commitlint.config.cjs).
 
@@ -198,4 +208,4 @@ For canvas-facing behavior, prefer deterministic state hooks and DOM assertions 
 
 ## License
 
-No license file is currently present in this repository.
+Licensed under [Apache-2.0](LICENSE).

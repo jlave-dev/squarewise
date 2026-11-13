@@ -14,7 +14,11 @@ permissions:
   pull-requests: write
 
 jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+
   release:
+    needs: validate
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -23,16 +27,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run check
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-      - name: Run end-to-end tests against production preview
-        env:
-          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 5173
-        run: npm run test:e2e
       - name: Publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
