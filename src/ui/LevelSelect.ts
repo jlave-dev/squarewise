@@ -23,13 +23,31 @@ export class LevelSelect {
   /**
    * Show the level select modal
    */
-  show(): void {
+  show(error?: string): void {
+    this.modal.setOnClose(() => {});
     this.modal.clear();
     this.modal.setTitle('Select Puzzle');
 
     const content = this.createContent();
+    if (error) {
+      const message = document.createElement('p');
+      message.setAttribute('role', 'alert');
+      message.textContent = error;
+      content.prepend(message);
+    }
     this.modal.setContent(content);
 
+    this.modal.open();
+  }
+
+  showLoading(onCancel: () => void): void {
+    this.modal.clear().setTitle('Preparing puzzle');
+    const message = document.createElement('p');
+    message.setAttribute('role', 'status');
+    message.textContent = 'Preparing your puzzle…';
+    this.modal.setContent(message);
+    this.modal.setOnClose(onCancel);
+    this.modal.addButton('Cancel', () => this.modal.close(), 'secondary');
     this.modal.open();
   }
 
@@ -209,6 +227,7 @@ export class LevelSelect {
    * Hide the level select
    */
   hide(): void {
+    this.modal.setOnClose(() => {});
     this.modal.close();
   }
 

@@ -37,13 +37,31 @@ export interface PuzzleGenerationResult {
  * Generate a complete puzzle with the given configuration
  */
 export async function generatePuzzle(config: PuzzleGenerationOptions): Promise<Puzzle> {
-  return (await generatePuzzleWithReport(config)).puzzle;
+  return generatePuzzleV1(config);
+}
+
+/**
+ * Published daily generator v1. Preserve its seeds, RNG consumption, presets, and
+ * acceptance rules. Future algorithm changes must use a new version/entry point.
+ * The fallback applies only to seeds that previously exhausted all ten attempts.
+ */
+export async function generatePuzzleV1(config: PuzzleGenerationOptions): Promise<Puzzle> {
+  try {
+    return (await generatePuzzleV1WithReport(config)).puzzle;
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith('Failed to generate valid puzzle after')) throw error;
+    return generatePuzzleV1Sync(config);
+  }
 }
 
 /**
  * Generate a complete puzzle and return tuning/validation metadata.
  */
 export async function generatePuzzleWithReport(config: PuzzleGenerationOptions): Promise<PuzzleGenerationResult> {
+  return generatePuzzleV1WithReport(config);
+}
+
+async function generatePuzzleV1WithReport(config: PuzzleGenerationOptions): Promise<PuzzleGenerationResult> {
   const { size, difficulty, seed } = config;
   const rng = createRNG(seed ?? Date.now().toString());
   const preset = getDifficultyPreset(difficulty);
@@ -165,6 +183,10 @@ export async function generatePuzzleWithReport(config: PuzzleGenerationOptions):
  * Generate a puzzle synchronously (without uniqueness validation)
  */
 export function generatePuzzleSync(config: PuzzleConfig): Puzzle {
+  return generatePuzzleV1Sync(config);
+}
+
+function generatePuzzleV1Sync(config: PuzzleConfig): Puzzle {
   const { size, difficulty, seed } = config;
   const rng = createRNG(seed ?? Date.now().toString());
   const preset = getDifficultyPreset(difficulty);
