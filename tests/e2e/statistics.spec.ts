@@ -74,6 +74,8 @@ test('daily replays show current time without borrowing the first completion bad
   snapshot.selectedCell = { row: 0, col: 0 };
   for (const time of [100, 10]) {
     snapshot.timer = time;
+    // Install the fixture after the previous game has flushed on pagehide.
+    await page.goto('./manifest.json');
     await page.evaluate(value => {
       sessionStorage.setItem('squarewise.activeGame.v1', JSON.stringify(value));
     }, snapshot);
@@ -97,6 +99,7 @@ test('local streak boundaries survive UTC midnight, missed days, and spring DST'
   ].entries()) {
     await page.clock.setFixedTime(new Date(instant));
     await page.goto('?scenario=almost-won&difficulty=easy');
+    await page.goto('./manifest.json');
     await page.evaluate(index => {
       const saved = JSON.parse(sessionStorage.getItem('squarewise.activeGame.v1')!);
       saved.puzzle.id += `-${index}`;

@@ -1,5 +1,18 @@
 import { expect, test } from '@playwright/test';
 
+test('reload checkpoints elapsed time before the periodic save', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('?scenario=in-progress&difficulty=easy');
+  const savedTimer = () => page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('squarewise.activeGame.v1')!).timer
+  );
+  const initial = await savedTimer();
+  await page.clock.runFor(2100);
+  expect(await savedTimer()).toBe(initial);
+  await page.goto('./');
+  expect(await savedTimer()).toBe(initial + 2);
+});
+
 test('timer preserves cell identity and focus without writing the board snapshot', async ({ page }) => {
   await page.clock.install();
   await page.goto('?scenario=in-progress&difficulty=easy');
