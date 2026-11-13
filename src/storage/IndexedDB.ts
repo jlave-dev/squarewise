@@ -85,31 +85,33 @@ class IndexedDBManager {
     });
   }
 
-  /**
-   * Set a value in a store
-   */
-  async set<K extends StoreNames>(
-    storeName: K,
-    key: string,
-    value: DBSchema[K]['value']
-  ): Promise<void> {
+  /** Read and write under the same lock; resolve only after transaction commit. */
+  async update<T>(storeName: StoreNames, key: string, update: (current: unknown) => T): Promise<T> {
     await this.init();
-    if (!this.db) return;
-
+    if (!this.db) throw new Error('Storage unavailable');
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
-      const request = store.put({ key, value });
-
-      request.onerror = () => {
-        console.error(`Failed to set ${key} in ${storeName}:`, request.error);
-        reject(request.error);
-      };
-
+      let value: T;
+      transaction.oncomplete = () => resolve(value);
+      transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
+      transaction.onerror = () => reject(transaction.error ?? new Error('Storage transaction failed'));
+      const request = store.get(key);
       request.onsuccess = () => {
-        resolve();
+        try {
+          value = update(request.result?.value ?? null);
+          store.put({ key, value });
+        } catch (error) {
+          transaction.abort();
+          reject(error);
+        }
       };
     });
+  }
+
+  /** Set a value and wait for the transaction to commit. */
+  async set<K extends StoreNames>(storeName: K, key: string, value: DBSchema[K]['value']): Promise<void> {
+    await this.update(storeName, key, () => value);
   }
 
   /**
@@ -129,9 +131,8 @@ class IndexedDBManager {
         reject(request.error);
       };
 
-      request.onsuccess = () => {
-        resolve();
-      };
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
     });
   }
 
@@ -175,9 +176,8 @@ class IndexedDBManager {
         reject(request.error);
       };
 
-      request.onsuccess = () => {
-        resolve();
-      };
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
     });
   }
 
@@ -206,5 +206,5 @@ export const setSetting = <T>(key: string, value: T): Promise<void> =>
 export const getStat = <T>(key: string, defaultValue: T): Promise<T> =>
   db.get('stats', key).then(v => (v as T) ?? defaultValue);
 
-export const setStat = <T>(key: string, value: T): Promise<void> =>
-  db.set('stats', key, value);
+export const updateStat = <T>(key: string, update: (current: unknown) => T): Promise<T> =>
+  db.update('stats', key, update);

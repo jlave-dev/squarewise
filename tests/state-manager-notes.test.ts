@@ -27,7 +27,7 @@ const puzzle: Puzzle = {
   ],
 };
 
-test('getCellsAffectedByPlacement includes same row, same column, and same cage only', () => {
+test('getCellsAffectedByPlacement includes only same-row and same-column peers', () => {
   const manager = new StateManager(puzzle);
 
   assert.deepEqual(
@@ -127,4 +127,23 @@ test('restoreSession restores persisted mistake count', () => {
   });
 
   assert.equal(manager.getState().mistakeCount, 2);
+});
+
+
+test('audit-easy-2 preserves repeated values in non-row/column cage peers', async () => {
+  const { generatePuzzle } = await import('../src/engine/generator/PuzzleGenerator');
+  const generated = await generatePuzzle({ size: 5, difficulty: 'easy', seed: 'audit-easy-2' });
+  const cage = generated.cages.find(cage => cage.clue.operation === '+' && cage.clue.target === 13 &&
+    cage.cells.filter(cell => generated.solution[cell.row][cell.col] === 4).length === 2)!;
+  assert.ok(cage);
+  const [source, endpoint] = cage.cells.filter(cell => generated.solution[cell.row][cell.col] === 4);
+  assert.notEqual(source.row, endpoint.row);
+  assert.notEqual(source.col, endpoint.col);
+  const peer = { row: source.row, col: (source.col + 1) % 5 };
+  const manager = new StateManager(generated);
+  manager.setNotes(endpoint, new Set([4]));
+  manager.setNotes(peer, new Set([4]));
+  manager.setCell(source, 4, { autoRemoveNotes: true });
+  assert.equal(manager.getState().notes[endpoint.row][endpoint.col].has(4), true);
+  assert.equal(manager.getState().notes[peer.row][peer.col].has(4), false);
 });

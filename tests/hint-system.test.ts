@@ -83,3 +83,53 @@ test('hint usage counters increment independently while total remains available'
   });
   assert.equal(getTotalHintUsage(usage), 3);
 });
+
+test('does not reveal or claim a deduction on inconsistent entries', () => {
+  const grid = oneEmptyGrid.map(row => [...row]);
+  grid[0][0] = 3;
+  const before = grid.map(row => [...row]);
+  for (const tier of [1, 2, 3, 4] as const) {
+    assert.equal(new HintSystem(puzzle).getHintStep(grid, tier), null);
+  }
+  assert.deepEqual(grid, before);
+});
+
+test('ambiguous subtraction and division candidates are not claimed as deductions', () => {
+  for (const [operation, target, visible] of [['-', 1, 3], ['÷', 2, 2]] as const) {
+    const witness = operation === '-' ? [[2, 3, 4, 1], [3, 4, 1, 2], [4, 1, 2, 3], [1, 2, 3, 4]] :
+      [[1, 2, 3, 4], [2, 3, 4, 1], [3, 4, 1, 2], [4, 1, 2, 3]];
+    const ambiguous: Puzzle = {
+      id: 'ambiguous-cage', size: 4, difficulty: 'easy', solution: witness,
+      cages: [
+        { id: 0, cells: [{ row: 0, col: 0 }, { row: 0, col: 1 }], clue: { target, operation } },
+        { id: 1, cells: [{ row: 0, col: 2 }, { row: 0, col: 3 }], clue: { target: witness[0][2] + witness[0][3], operation: '+' } },
+        ...[1, 2, 3].map(row => ({ id: row + 1, cells: [0, 1, 2, 3].map(col => ({ row, col })), clue: { target: 10, operation: '+' as const } })),
+      ],
+    };
+    const grid = Array.from({ length: 4 }, () => [0, 0, 0, 0]);
+    grid[0][1] = visible;
+    const hints = new HintSystem(ambiguous);
+    const hint = hints.getHintStep(grid, 4);
+    assert.equal(hint?.value, witness[0][0]);
+    assert.equal(hint?.reason, 'solver-fallback');
+  }
+});
+
+test('audit-easy-2 reveals remain compatible with its unique solution', async () => {
+  const { generatePuzzle } = await import('../src/engine/generator/PuzzleGenerator');
+  const { Validator } = await import('../src/engine/validation/Validator');
+  const generated = await generatePuzzle({ size: 5, difficulty: 'easy', seed: 'audit-easy-2' });
+  const grid = generated.solution.map((row, r) => row.map((value, c) => (r + c) % 2 ? value : 0));
+  const hints = new HintSystem(generated);
+  const validator = new Validator(generated);
+  while (!validator.isFull(grid)) {
+    const hint = hints.getHintStep(grid, 4);
+    assert.ok(hint?.reveal);
+    const { row, col } = hint.focus.cells[0];
+    assert.equal(grid[row][col], 0);
+    assert.equal(hint.value, generated.solution[row][col]);
+    grid[row][col] = hint.value!;
+    assert.deepEqual(validator.findAllErrors(grid), []);
+  }
+  assert.equal(validator.isComplete(grid), true);
+});

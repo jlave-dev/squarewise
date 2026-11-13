@@ -23,9 +23,7 @@ export class StatsScreen {
   }
 
   async show(): Promise<void> {
-    if (!statsStore.isLoaded()) {
-      await statsStore.load();
-    }
+    await statsStore.load();
 
     this.modal.clear();
     this.modal.setTitle('Statistics');

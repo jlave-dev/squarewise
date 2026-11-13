@@ -12,6 +12,7 @@ type ArchiveSelectCallback = (date: string, difficulty: Difficulty) => void;
 export class LevelSelect {
   private modal: Modal;
   private displayedDate = formatLocalDate(new Date());
+  private showingChoices = false;
   private onDifficultySelect?: DifficultySelectCallback;
   private onDailyChallenge?: () => void;
   private onTutorial?: () => void;
@@ -26,12 +27,20 @@ export class LevelSelect {
   /**
    * Show the level select modal
    */
-  show(): void {
+  show(error?: string): void {
+    this.showingChoices = true;
     this.displayedDate = formatLocalDate(new Date());
+    this.modal.setOnClose(() => {});
     this.modal.clear();
     this.modal.setTitle('Select Puzzle');
 
     const content = this.createContent();
+    if (error) {
+      const message = document.createElement('p');
+      message.setAttribute('role', 'alert');
+      message.textContent = error;
+      content.prepend(message);
+    }
     this.modal.setContent(content);
 
     this.modal.open();
@@ -48,7 +57,7 @@ export class LevelSelect {
 
   private refreshDate(): void {
     const today = formatLocalDate(new Date());
-    if (today === this.displayedDate || !this.modal.isOpen()) return;
+    if (today === this.displayedDate || !this.modal.isOpen() || !this.showingChoices) return;
     this.displayedDate = today;
     const root = this.modal.getContentElement();
     const controls = Array.from(root.querySelectorAll<HTMLElement>('button, summary'));
@@ -58,6 +67,18 @@ export class LevelSelect {
     const archive = root.querySelector('details');
     if (archive) archive.open = archiveOpen;
     if (focusIndex >= 0) root.querySelectorAll<HTMLElement>('button, summary')[focusIndex]?.focus();
+  }
+
+  showLoading(onCancel: () => void): void {
+    this.showingChoices = false;
+    this.modal.clear().setTitle('Preparing puzzle');
+    const message = document.createElement('p');
+    message.setAttribute('role', 'status');
+    message.textContent = 'Preparing your puzzle…';
+    this.modal.setContent(message);
+    this.modal.setOnClose(onCancel);
+    this.modal.addButton('Cancel', () => this.modal.close(), 'secondary');
+    this.modal.open();
   }
 
   private createContent(): HTMLElement {
@@ -236,6 +257,7 @@ export class LevelSelect {
    * Hide the level select
    */
   hide(): void {
+    this.modal.setOnClose(() => {});
     this.modal.close();
   }
 

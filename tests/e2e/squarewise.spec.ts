@@ -225,6 +225,12 @@ test('keyboard gameplay supports notes, values, undo, redo, clear, hint, and pau
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Y' : 'Control+Y');
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-value', '1');
 
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Z' : 'Control+Z');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-value', '0');
+  await expect(page.locator('.accessible-board-cell[data-row="0"][data-col="0"]')).toHaveAttribute('aria-label', /notes 1/);
+  await page.keyboard.press('2');
+  await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeDisabled();
+
   await page.keyboard.press('Backspace');
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-value', '0');
 

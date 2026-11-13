@@ -2,6 +2,27 @@ import { expect, test } from '@playwright/test';
 
 test.use({ timezoneId: 'America/Chicago' });
 
+test('midnight leaves generation loading and cancellation intact', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-06-05T23:59:59-05:00') });
+  await page.addInitScript(() => {
+    // Keep the request pending across midnight without depending on device speed.
+    window.Worker = class {
+      postMessage() {}
+      terminate() {}
+    } as unknown as typeof Worker;
+  });
+  await page.goto('?scenario=level-select');
+  await page.getByRole('button', { name: /^hard /i }).click();
+  const loading = page.getByRole('dialog', { name: 'Preparing puzzle' });
+  await expect(loading.getByRole('status')).toContainText('Preparing your puzzle');
+  await page.clock.runFor(2200);
+  await expect(loading.getByRole('status')).toContainText('Preparing your puzzle');
+  await expect(loading.getByRole('button', { name: /Daily Challenge/ })).toHaveCount(0);
+  await loading.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog', { name: 'Select Puzzle' })).toBeVisible();
+  await expect(page.locator('.daily-challenge-date')).toContainText('Jun 6');
+});
+
 test('midnight refreshes the picker without relabeling the active daily', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-06-05T23:59:59-05:00') });
   await page.goto('?scenario=daily-in-progress&difficulty=easy&date=2026-06-05');
