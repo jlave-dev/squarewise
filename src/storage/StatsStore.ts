@@ -2,6 +2,7 @@ import { getStat, setStat } from './IndexedDB';
 import { formatLocalDate } from '../core/DailyChallenge';
 import type { DailyBadge, DailyCompletion, HintUsage, PlayerStats } from '../types/game';
 import type { Difficulty } from '../types/puzzle';
+import { getDifficulties } from '../engine/difficulty/presets';
 
 const createDefaultStats = (): PlayerStats => ({
   puzzlesCompleted: {
@@ -24,6 +25,49 @@ const createDefaultStats = (): PlayerStats => ({
   lastPlayedDate: null,
   dailyCompletions: {},
 });
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+const isNonNegative = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const isCount = (value: unknown): value is number => isNonNegative(value) && Number.isSafeInteger(value);
+const isDate = (value: unknown): value is string => typeof value === 'string' &&
+  /^\d{4}-\d{2}-\d{2}$/.test(value) && formatLocalDate(new Date(`${value}T00:00:00`)) === value;
+
+/** Migrate partial older records and retain every independently valid field. */
+export function normalizeStats(value: unknown): PlayerStats {
+  const result = createDefaultStats();
+  if (!isRecord(value)) return result;
+  for (const difficulty of getDifficulties()) {
+    const count = isRecord(value.puzzlesCompleted) ? value.puzzlesCompleted[difficulty] : undefined;
+    const best = isRecord(value.bestTimes) ? value.bestTimes[difficulty] : undefined;
+    if (isCount(count)) result.puzzlesCompleted[difficulty] = count;
+    if (isNonNegative(best)) result.bestTimes[difficulty] = best;
+  }
+  if (isNonNegative(value.totalTime)) result.totalTime = value.totalTime;
+  if (isCount(value.currentStreak)) result.currentStreak = value.currentStreak;
+  if (isCount(value.longestStreak)) result.longestStreak = value.longestStreak;
+  if (isDate(value.lastPlayedDate)) result.lastPlayedDate = value.lastPlayedDate;
+  if (isRecord(value.dailyCompletions)) {
+    for (const entry of Object.values(value.dailyCompletions)) {
+      if (!isRecord(entry) || !isDate(entry.date) || !getDifficulties().includes(entry.difficulty as Difficulty) ||
+          typeof entry.puzzleId !== 'string' || !entry.puzzleId.trim() ||
+          typeof entry.completedAt !== 'string' || !Number.isFinite(Date.parse(entry.completedAt)) ||
+          !isNonNegative(entry.time) || !isCount(entry.mistakes) || !isRecord(entry.hintUsage)) continue;
+      const usage = entry.hintUsage;
+      if (!isCount(usage.tier1) || !isCount(usage.tier2) || !isCount(usage.tier3) || !isCount(usage.tier4)) continue;
+      const difficulty = entry.difficulty as Difficulty;
+      result.dailyCompletions[getDailyCompletionKey(entry.date, difficulty)] = {
+        date: entry.date, difficulty, puzzleId: entry.puzzleId, completedAt: entry.completedAt,
+        time: entry.time, mistakes: entry.mistakes,
+        hintUsage: { tier1: usage.tier1, tier2: usage.tier2, tier3: usage.tier3, tier4: usage.tier4 },
+        badges: Array.isArray(entry.badges) ? entry.badges.filter((badge): badge is DailyBadge =>
+          ['no-hint', 'no-reveal', 'mistake-free', 'personal-best'].includes(badge)) : [],
+      };
+    }
+  }
+  return result;
+}
 
 const STATS_KEY = 'playerStats';
 
@@ -148,7 +192,7 @@ class StatsStore {
   async load(): Promise<void> {
     try {
       const saved = await getStat<PlayerStats>(STATS_KEY, createDefaultStats());
-      this.stats = { ...createDefaultStats(), ...saved };
+      this.stats = normalizeStats(saved);
       this.loaded = true;
       this.notifyListeners();
     } catch (error) {

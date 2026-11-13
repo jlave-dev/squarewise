@@ -14,7 +14,7 @@ import { NumberPad } from './ui/NumberPad';
 import { AccessibleBoard } from './ui/AccessibleBoard';
 import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
-import { clearActiveGame, loadActiveGame } from './storage/ActiveGameStore';
+import { clearActiveGame } from './storage/ActiveGameStore';
 import { dailyChallenge, formatLocalDate } from './core/DailyChallenge';
 import { generatePuzzleInWorker, type PuzzleRequest } from './engine/generator/PuzzleWorker';
 import { buildWinSharePayload } from './app/share/SharePayload';
@@ -163,10 +163,9 @@ class SquareWiseApp {
       return;
     }
 
-    const activeGame = loadActiveGame();
-    if (activeGame) this.numberPad.setGridSize(activeGame.puzzle.size);
     const resumed = await this.game.resumeActiveGame();
     if (resumed) {
+      this.numberPad.setGridSize(this.game.getGridSize());
       console.log('[SquareWise] Resumed active game with grid size:', this.game.getGridSize());
       return;
     }
