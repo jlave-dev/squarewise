@@ -1,6 +1,8 @@
 import type { Cage, Cell, Puzzle } from '../types/puzzle';
 import type { HintTier, HintUsage } from '../types/game';
-import { getHint as solverGetHint } from '../engine/solver/BacktrackSolver';
+import { getHint as solverGetHint, solvePuzzle } from '../engine/solver/BacktrackSolver';
+import { validateClue } from '../engine/generator/ClueCalculator';
+import { Validator } from '../engine/validation/Validator';
 
 export interface HintFocus {
   cells: Cell[];
@@ -30,7 +32,8 @@ export type HintReason =
   | 'row-elimination'
   | 'col-elimination'
   | 'cage-constraint'
-  | 'solver-fallback';
+  | 'solver-fallback'
+  | 'unavailable';
 
 export function createEmptyHintUsage(): HintUsage {
   return {
@@ -67,8 +70,14 @@ export class HintSystem {
   /**
    * Get a structured hint tier. Tiers 1-3 never reveal/place a value.
    */
-  getHintStep(grid: number[][], tier: HintTier): HintStep | null {
-    const candidate = this.findHintCandidate(grid);
+  getHintStep(grid: number[][], tier: HintTier, onBudgetExceeded?: () => void): HintStep | null {
+    // A local deduction is only useful when the current entries can be completed.
+    // Reuse the stored witness when compatible; alternatives require a bounded solve.
+    const stored = this.puzzle.solution;
+    const solution = grid.every((row, r) => row.every((value, c) => value === 0 || value === stored[r]?.[c])) &&
+      new Validator(this.puzzle).isComplete(stored) ? stored : solvePuzzle(this.puzzle, grid, undefined, onBudgetExceeded);
+    if (!solution) return null;
+    const candidate = this.findHintCandidate(grid, solution);
     if (!candidate) return null;
 
     if (tier === 1) {
@@ -86,9 +95,9 @@ export class HintSystem {
     return {
       tier: 4,
       focus: this.buildFocus(candidate),
-      value: candidate.value,
+      value: solution[candidate.cell.row][candidate.cell.col],
       reason: candidate.reason,
-      explanation: `Reveal ${candidate.value} in row ${candidate.cell.row + 1}, column ${candidate.cell.col + 1}.`,
+      explanation: `Reveal ${solution[candidate.cell.row][candidate.cell.col]} in row ${candidate.cell.row + 1}, column ${candidate.cell.col + 1}.`,
       reveal: true,
     };
   }
@@ -108,7 +117,7 @@ export class HintSystem {
       tier: 1,
       focus,
       reason: candidate.reason,
-      explanation: `Focus on this ${noun}. It has the clearest next deduction.`,
+      explanation: candidate.reason === 'solver-fallback' ? `Compare the row, column, and clue for this ${noun}.` : `Focus on this ${noun}. It has the clearest next deduction.`,
       reveal: false,
     };
   }
@@ -145,11 +154,11 @@ export class HintSystem {
     };
   }
 
-  private findHintCandidate(grid: number[][]): HintCandidate | null {
+  private findHintCandidate(grid: number[][], solution: number[][]): HintCandidate | null {
     return (
       this.findOnlyOptionCandidate(grid) ??
       this.findCageConstraintCandidate(grid) ??
-      this.getSolverCandidate(grid)
+      this.getSolverCandidate(grid, solution)
     );
   }
 
@@ -181,35 +190,23 @@ export class HintSystem {
   }
 
   private analyzeCageForCandidate(grid: number[][], cage: Cage): HintCandidate | null {
-    const { target, operation } = cage.clue;
     const emptyCells = cage.cells.filter((cell) => grid[cell.row][cell.col] === 0);
     if (emptyCells.length !== 1) return null;
-
-    const filledValues = cage.cells
-      .filter((cell) => grid[cell.row][cell.col] !== 0)
-      .map((cell) => grid[cell.row][cell.col]);
-    const requiredValue = this.calculateRequiredValue(target, operation, filledValues);
-    if (!this.isUsableValue(requiredValue)) return null;
-
     const cell = emptyCells[0];
-    const possibleValues = this.getPossibleValues(grid, cell.row, cell.col);
-    if (!possibleValues.includes(requiredValue)) return null;
-
-    return {
-      cell,
-      value: requiredValue,
-      reason: 'cage-constraint',
-      cage,
-    };
+    const possibleValues = this.getPossibleValues(grid, cell.row, cell.col).filter(value =>
+      validateClue(cage.clue, cage.cells.map(member =>
+        member.row === cell.row && member.col === cell.col ? value : grid[member.row][member.col])));
+    if (possibleValues.length !== 1) return null;
+    return { cell, value: possibleValues[0], reason: 'cage-constraint', cage };
   }
 
-  private getSolverCandidate(grid: number[][]): HintCandidate | null {
+  private getSolverCandidate(grid: number[][], solution: number[][]): HintCandidate | null {
     const cell = solverGetHint(this.puzzle, grid);
     if (!cell) return null;
 
     return {
       cell,
-      value: this.puzzle.solution[cell.row][cell.col],
+      value: solution[cell.row][cell.col],
       reason: 'solver-fallback',
       cage: this.findCage(cell) ?? undefined,
     };
@@ -327,50 +324,6 @@ export class HintSystem {
     }
 
     return possible;
-  }
-
-  private calculateRequiredValue(
-    target: number,
-    operation: string,
-    filledValues: number[]
-  ): number | null {
-    switch (operation) {
-      case 'none':
-        return target;
-
-      case '+':
-        return target - filledValues.reduce((sum, value) => sum + value, 0);
-
-      case '×': {
-        const product = filledValues.reduce((acc, value) => acc * value, 1);
-        if (product === 0 || target % product !== 0) return null;
-        return target / product;
-      }
-
-      case '-':
-        if (filledValues.length !== 1) return null;
-        return this.chooseValidValue([filledValues[0] + target, filledValues[0] - target]);
-
-      case '÷':
-        if (filledValues.length !== 1) return null;
-        return this.chooseValidValue([filledValues[0] * target, filledValues[0] / target]);
-
-      default:
-        return null;
-    }
-  }
-
-  private chooseValidValue(values: number[]): number | null {
-    return values.find((value) => this.isUsableValue(value)) ?? null;
-  }
-
-  private isUsableValue(value: number | null): value is number {
-    return (
-      typeof value === 'number' &&
-      Number.isInteger(value) &&
-      value >= 1 &&
-      value <= this.puzzle.size
-    );
   }
 
   private findCage(cell: Cell): Cage | null {

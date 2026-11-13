@@ -122,7 +122,7 @@ export function formatClue(clue: Clue): string {
  * Validate that a cage's clue is correct for given values
  */
 export function validateClue(clue: Clue, values: number[]): boolean {
-  if (values.length === 0) return false;
+  if (values.length === 0 || values.some(value => !Number.isInteger(value) || value < 1)) return false;
 
   switch (clue.operation) {
     case 'none':

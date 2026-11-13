@@ -1,5 +1,5 @@
 import type { Puzzle, Difficulty, PuzzleConfig } from '../types/puzzle';
-import { generatePuzzle } from '../engine/generator/PuzzleGenerator';
+import { generatePuzzleV1 } from '../engine/generator/PuzzleGenerator';
 import { getDifficultyPreset } from '../engine/difficulty/presets';
 
 interface DailyProgress {
@@ -61,7 +61,7 @@ export class DailyChallenge {
       seed,
     };
 
-    return generatePuzzle(config);
+    return generatePuzzleV1(config);
   }
 
   /**
