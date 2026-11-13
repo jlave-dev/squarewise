@@ -425,6 +425,7 @@ test.describe('mobile layout', () => {
 
   test('tutorial keeps its required cell and keypad unobstructed', async ({ page }) => {
     await page.goto('?scenario=tutorial-step&step=select-cage');
+    await expect(page.locator('.tutorial-panel')).toBeVisible();
 
     const layout = await page.evaluate(() => {
       const canvas = document.querySelector('canvas')?.getBoundingClientRect();
