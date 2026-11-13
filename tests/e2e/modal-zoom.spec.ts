@@ -39,9 +39,16 @@ test('expert board permits browser zoom and touch selection', async ({ browser, 
   await canvas.tap({ position: { x: 68, y: 28 } });
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-selected-col', '1');
   await page.screenshot({ path: 'outputs/audit/expert-zoom.png' });
-  await cdp.send('Input.synthesizeScrollGesture', {
-    x: 150, y: 350, xDistance: 0, yDistance: -550, gestureSourceType: 'touch', speed: 1000,
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart', touchPoints: [{ x: 150, y: 350 }],
   });
+  for (let y = 330; y >= 30; y -= 20) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x: 150, y }],
+    });
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   // Panning can move the layout viewport, visual viewport, or both.
   // Verify that the keypad reaches the visible viewport instead of requiring
   // one particular scroll offset to change.
