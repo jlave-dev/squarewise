@@ -14,7 +14,6 @@ import { NumberPad } from './ui/NumberPad';
 import { AccessibleBoard } from './ui/AccessibleBoard';
 import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
-import { clearActiveGame } from './storage/ActiveGameStore';
 import { dailyChallenge, formatLocalDate } from './core/DailyChallenge';
 import { generatePuzzleInWorker, type PuzzleRequest } from './engine/generator/PuzzleWorker';
 import { buildWinSharePayload } from './app/share/SharePayload';
@@ -78,16 +77,8 @@ class SquareWiseApp {
     this.uiRenderer = new UIRenderer();
     this.shareService = new ShareService();
     this.tutorialController = new TutorialController({
-      onComplete: () => {
-        markTutorialCompleted();
-        clearActiveGame();
-        this.levelSelect.show();
-      },
-      onSkip: () => {
-        markTutorialSkipped();
-        clearActiveGame();
-        this.levelSelect.show();
-      },
+      onComplete: () => this.finishTutorial(false),
+      onSkip: () => this.finishTutorial(true),
     });
     this.numberPad = new NumberPad({
       onNumber: (value) => this.handleNumberInput(value),
@@ -183,11 +174,11 @@ class SquareWiseApp {
 
   private setupUICallbacks(): void {
     // UI Renderer callbacks
-    this.uiRenderer.onUndo = () => this.game?.['undo']();
-    this.uiRenderer.onRedo = () => this.game?.['redo']();
-    this.uiRenderer.onHint = () => this.game?.['showHint']();
-    this.uiRenderer.onHintTier = (tier) => this.game?.['showHint'](tier);
-    this.uiRenderer.onPause = () => this.game?.['togglePause']();
+    this.uiRenderer.onUndo = () => this.game?.undo();
+    this.uiRenderer.onRedo = () => this.game?.redo();
+    this.uiRenderer.onHint = () => this.game?.showHint();
+    this.uiRenderer.onHintTier = (tier) => this.game?.showHint(tier);
+    this.uiRenderer.onPause = () => this.game?.togglePause();
     this.uiRenderer.onSettings = () => this.settingsPanel.toggle();
     this.uiRenderer.onStats = () => this.statsScreen.show();
     this.uiRenderer.onNewGame = () => this.levelSelect.show();
@@ -260,6 +251,14 @@ class SquareWiseApp {
     }
   }
 
+  private finishTutorial(skipped: boolean): void {
+    if (skipped) markTutorialSkipped();
+    else markTutorialCompleted();
+    this.tutorialController.hide();
+    this.game?.endSession();
+    this.levelSelect.show();
+  }
+
   private startTutorial(step: TutorialStepId): void {
     if (!this.game) return;
     this.generationController?.abort();
@@ -275,17 +274,17 @@ class SquareWiseApp {
 
   private handleNumberInput(value: number): void {
     if (!this.game) return;
-    this.game['handleNumberInput'](value);
+    this.game.handleNumberInput(value);
   }
 
   private handleClear(): void {
     if (!this.game) return;
-    this.game['clearCell']();
+    this.game.clearCell();
   }
 
   private toggleNotesMode(): void {
     if (!this.game) return;
-    this.game['toggleNotesMode']();
+    this.game.toggleNotesMode();
   }
 
   private handleWin(stats: WinStats): void {
@@ -513,7 +512,7 @@ class SquareWiseApp {
     this.game.applyDebugSession(session);
 
     if (scenario === 'hint-tier') {
-      this.game['showHint'](tier);
+      this.game.showHint(tier);
       this.winScreen.hide();
       return;
     }
@@ -630,6 +629,7 @@ class SquareWiseApp {
   }
 
   private handleGameStateChange(snapshot: GameSnapshot): void {
+    if (snapshot.mode !== 'tutorial') this.tutorialController.hide();
     this.uiRenderer.updateGameHeader({
       mode: snapshot.mode,
       date: snapshot.date,

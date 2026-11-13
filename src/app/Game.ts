@@ -142,6 +142,7 @@ export class Game {
    */
   loadPuzzle(puzzle: Puzzle): void {
     console.log('[Game] Loading puzzle:', puzzle.id);
+    if (this.getPuzzleIdentity(puzzle).mode === 'tutorial') clearActiveGame();
     this.preparePuzzle(puzzle);
     claimActiveGame();
     this.stateManager.startGame();
@@ -153,12 +154,25 @@ export class Game {
     console.log('[Game] Puzzle loaded and rendered');
   }
 
+  /** End the current session before returning to the puzzle picker. */
+  endSession(): void {
+    this.timer.reset();
+    this.preparePuzzle(this.createPlaceholderPuzzle());
+    clearActiveGame();
+    this.callbacks.onTimerUpdate?.(0);
+    this.render();
+  }
+
   /**
    * Resume the latest in-progress puzzle from local persistence
    */
   async resumeActiveGame(): Promise<boolean> {
     const snapshot = loadActiveGame();
     if (!snapshot) return false;
+    if (this.getPuzzleIdentity(snapshot.puzzle).mode === 'tutorial') {
+      clearActiveGame();
+      return false;
+    }
 
     try {
       console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
@@ -233,7 +247,7 @@ export class Game {
   /**
    * Handle number input
    */
-  private handleNumberInput(value: number): void {
+  handleNumberInput(value: number): void {
     if (!this.canInteract()) return;
     const cell = this.stateManager.getState().selectedCell;
     if (!cell) return;
@@ -281,7 +295,7 @@ export class Game {
   /**
    * Clear the selected cell
    */
-  private clearCell(): void {
+  clearCell(): void {
     if (!this.canInteract()) return;
     const cell = this.stateManager.getState().selectedCell;
     if (!cell) return;
@@ -306,7 +320,7 @@ export class Game {
   /**
    * Undo last action
    */
-  private undo(): void {
+  undo(): void {
     if (!this.canInteract()) return;
     const currentState = this.stateManager.getState();
     const previousState = this.undoStack.undo(currentState.grid, currentState.notes);
@@ -322,7 +336,7 @@ export class Game {
   /**
    * Redo last undone action
    */
-  private redo(): void {
+  redo(): void {
     if (!this.canInteract()) return;
     const currentState = this.stateManager.getState();
     const nextState = this.undoStack.redo(currentState.grid, currentState.notes);
@@ -338,7 +352,7 @@ export class Game {
   /**
    * Toggle notes mode
    */
-  private toggleNotesMode(): void {
+  toggleNotesMode(): void {
     if (!this.canInteract()) return;
     this.notesMode = !this.notesMode;
     this.persistActiveState();
@@ -349,7 +363,7 @@ export class Game {
   /**
    * Show a hint
    */
-  private showHint(tier: HintTier = 1): void {
+  showHint(tier: HintTier = 1): void {
     if (!this.canInteract()) return;
     if (!this.hintSystem) return;
 
@@ -407,7 +421,7 @@ export class Game {
   /**
    * Toggle pause
    */
-  private togglePause(): void {
+  togglePause(): void {
     const status = this.stateManager.getStatus();
     if (status === 'playing') {
       this.stateManager.pauseGame();
@@ -633,7 +647,7 @@ export class Game {
   private persistActiveState(): void {
     const state = this.stateManager.getState();
 
-    if (state.puzzle.id === 'placeholder') return;
+    if (state.puzzle.id === 'placeholder' || this.getPuzzleIdentity(state.puzzle).mode === 'tutorial') return;
     if (state.status !== 'playing' && state.status !== 'paused') return;
 
     saveActiveGame({
