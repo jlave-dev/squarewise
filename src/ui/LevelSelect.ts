@@ -43,7 +43,8 @@ export class LevelSelect {
     }
     this.modal.setContent(content);
 
-    this.modal.open();
+    if (!this.modal.isOpen()) this.modal.open();
+    else this.modal.getContentElement().querySelector<HTMLElement>('button')?.focus();
   }
 
   private scheduleDateRefresh(): void {
@@ -104,7 +105,16 @@ export class LevelSelect {
       container.appendChild(this.createDifficultyButton(difficulty));
     }
 
-    container.appendChild(this.createTutorialButton());
+    const help = document.createElement('div');
+    help.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 8px';
+    help.appendChild(this.createTutorialButton());
+    const rules = document.createElement('button');
+    rules.className = 'btn btn-secondary';
+    rules.type = 'button';
+    rules.textContent = 'Rules';
+    rules.addEventListener('click', () => this.showRules());
+    help.appendChild(rules);
+    container.appendChild(help);
     container.appendChild(this.createArchiveSection());
 
     return container;
@@ -144,6 +154,27 @@ export class LevelSelect {
       this.onTutorial?.();
     });
     return btn;
+  }
+
+  private showRules(): void {
+    this.showingChoices = false;
+    this.modal.clear();
+    this.modal.setTitle('Rules');
+    const content = document.createElement('div');
+    content.style.cssText = 'display: grid; gap: 12px; line-height: 1.5';
+    for (const text of [
+      'Fill each row and column with 1 through the board size, using every number once.',
+      'Each outlined cage must match its clue. Add for + and multiply for ×. A one-cell cage gives its value.',
+      'For −, subtract the smaller number from the larger: 5 − 2 = 3. For ÷, divide the larger by the smaller: 6 ÷ 2 = 3. Cell order does not matter.',
+      'Numbers may repeat within a cage when they are in different rows and columns.',
+      'Turn Notes on to add or remove candidate numbers. Turn it off to enter a final value.',
+    ]) {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = text;
+      content.appendChild(paragraph);
+    }
+    this.modal.setContent(content);
+    this.modal.addButton('Back', () => this.show(), 'secondary').focus();
   }
 
   private createArchiveSection(): HTMLElement {

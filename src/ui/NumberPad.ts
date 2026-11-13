@@ -2,7 +2,6 @@ import {
   faEraser,
   faPen,
   faPenToSquare,
-  faTableCellsLarge,
 } from '@fortawesome/free-solid-svg-icons';
 import { createIconElement, setLabeledIconContent } from './icons';
 
@@ -182,24 +181,11 @@ export class NumberPad {
       this.buttons.push(btn);
     }
 
-    const notesGroup = document.createElement('div');
-    notesGroup.className = 'number-pad-notes-group';
-
     this.notesToggle = document.createElement('button');
     this.notesToggle.className = 'number-pad-action-btn number-pad-action-btn--notes';
     this.notesToggle.type = 'button';
     this.notesToggle.addEventListener('click', () => this.toggleNotes());
-    notesGroup.appendChild(this.notesToggle);
-
-    const noteGridBtn = document.createElement('button');
-    noteGridBtn.className = 'number-pad-action-btn number-pad-action-btn--grid';
-    noteGridBtn.type = 'button';
-    noteGridBtn.setAttribute('aria-label', 'Note Grid');
-    noteGridBtn.appendChild(createIconElement(faTableCellsLarge));
-    noteGridBtn.addEventListener('click', () => this.toggleNotes());
-    notesGroup.appendChild(noteGridBtn);
-
-    this.actionsContainer.appendChild(notesGroup);
+    this.actionsContainer.appendChild(this.notesToggle);
 
     const clearBtn = document.createElement('button');
     clearBtn.className = 'number-pad-action-btn number-pad-action-btn--clear';
