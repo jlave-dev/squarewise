@@ -16,6 +16,7 @@ async function readStats(page: Page) {
 }
 
 async function finish(page: Page) {
+  await expect(page.getByRole('grid')).toBeVisible();
   const value = await page.evaluate(() => {
     const saved = JSON.parse(sessionStorage.getItem('squarewise.activeGame.v1')!);
     return saved.puzzle.solution[saved.selectedCell.row][saved.selectedCell.col];
@@ -68,6 +69,7 @@ test('a Reveal win is visible but excluded from statistics and badges', async ({
 
 test('daily replays show current time without borrowing the first completion badges', async ({ page }) => {
   await page.goto('?scenario=daily-in-progress&difficulty=easy&date=2026-06-05');
+  await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
   const snapshot = await page.evaluate(() => JSON.parse(sessionStorage.getItem('squarewise.activeGame.v1')!));
   snapshot.grid = snapshot.puzzle.solution.map((row: number[]) => [...row]);
   snapshot.grid[0][0] = 0;
