@@ -104,6 +104,8 @@ Test coverage focuses on:
 
 ## Deployment and Releases
 
+Pull requests run `.github/workflows/validate.yml` for typecheck, unit tests, build, and production-preview browser tests. Deployment and release reuse the same workflow.
+
 GitHub Pages deployment is defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). On pushes to `main`, the workflow:
 
 1. installs dependencies with `npm ci`
@@ -114,7 +116,7 @@ GitHub Pages deployment is defined in [`.github/workflows/deploy.yml`](.github/w
 6. runs Playwright against `vite preview`
 7. uploads `dist/` to GitHub Pages
 
-Release automation is defined in [`.github/workflows/release.yml`](.github/workflows/release.yml) and [`release.config.cjs`](release.config.cjs). semantic-release creates GitHub releases from conventional commits on `main`. npm publishing is disabled with `npmPublish: false`.
+Release automation is defined in [`.github/workflows/release.yml`](.github/workflows/release.yml) and [`release.config.cjs`](release.config.cjs). semantic-release creates GitHub releases from conventional commits on `main`. npm publishing is disabled by omitting the npm release plugin.
 
 Pull request titles and pushed commits are checked by [`.github/workflows/commit-policy.yml`](.github/workflows/commit-policy.yml) using conventional commit rules from [`commitlint.config.cjs`](commitlint.config.cjs).
 
@@ -198,4 +200,4 @@ For canvas-facing behavior, prefer deterministic state hooks and DOM assertions 
 
 ## License
 
-No license file is currently present in this repository.
+Licensed under [Apache-2.0](LICENSE).

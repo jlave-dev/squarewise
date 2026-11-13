@@ -1,4 +1,5 @@
-const CACHE_NAME = 'squarewise-v4';
+const CACHE_PREFIX = 'squarewise-';
+const CACHE_NAME = CACHE_PREFIX + 'v5';
 const BASE = new URL('.', self.location).pathname.replace(/\/$/, '');
 const APP_SHELL = [
   BASE + '/',
@@ -33,7 +34,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((cacheNames) => Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
           .map((name) => caches.delete(name))
       ))
       .then(() => self.clients.claim())
@@ -47,7 +48,7 @@ self.addEventListener('fetch', (event) => {
   if (!request.url.startsWith('http')) return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE + '/')) return;
 
   // Keep navigation fresh so app updates are visible.
   if (request.mode === 'navigate') {
@@ -74,11 +75,11 @@ async function networkFirst(request) {
     }
     return response;
   } catch {
-    const cachedResponse = await caches.match(request);
+    const cachedResponse = await (await caches.open(CACHE_NAME)).match(request);
     if (cachedResponse) return cachedResponse;
 
     if (request.mode === 'navigate') {
-      const cachedShell = await caches.match(BASE + '/index.html');
+      const cachedShell = await (await caches.open(CACHE_NAME)).match(BASE + '/index.html');
       if (cachedShell) return cachedShell;
     }
 
@@ -87,7 +88,7 @@ async function networkFirst(request) {
 }
 
 async function cacheFirst(request) {
-  const cachedResponse = await caches.match(request, { ignoreVary: true });
+  const cachedResponse = await (await caches.open(CACHE_NAME)).match(request, { ignoreVary: true });
   if (cachedResponse) return cachedResponse;
 
   const response = await fetch(request);
