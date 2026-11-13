@@ -1,4 +1,4 @@
-import type { Puzzle, Cell, Cage, Difficulty, PuzzleConfig } from '../types/puzzle';
+import type { Puzzle, Cell, Cage, Difficulty } from '../types/puzzle';
 import type {
   DailyBadge,
   UserSettings,
@@ -12,9 +12,7 @@ import { StateManager } from './StateManager';
 import { Timer } from '../core/Timer';
 import { UndoStack } from '../core/UndoStack';
 import { Validator } from '../engine/validation/Validator';
-import { generatePuzzle } from '../engine/generator/PuzzleGenerator';
-import { getDifficultyPreset } from '../engine/difficulty/presets';
-import { statsStore } from '../storage/StatsStore';
+import { statsStore, type CompletionResult, type RecordingStatus } from '../storage/StatsStore';
 import { HintSystem, type HintStep } from '../core/HintSystem';
 import {
   buildBoardRenderState,
@@ -22,6 +20,7 @@ import {
 } from '../renderer/boardRenderState';
 import {
   clearActiveGame,
+  claimActiveGame,
   loadActiveGame,
   saveActiveGame,
 } from '../storage/ActiveGameStore';
@@ -40,6 +39,7 @@ export interface GameCallbacks {
     puzzleId: string;
     badges: DailyBadge[];
     dailyStreak: number | null;
+    recordingStatus: RecordingStatus;
   }) => void;
   onTimerUpdate?: (elapsed: number) => void;
   onStateChange?: (snapshot: GameSnapshot) => void;
@@ -138,38 +138,12 @@ export class Game {
   }
 
   /**
-   * Start a new game with given difficulty
-   */
-  async startNewGame(difficulty: Difficulty): Promise<void> {
-    console.log('[Game] Starting new game:', difficulty);
-    const preset = getDifficultyPreset(difficulty);
-
-    const config: PuzzleConfig = {
-      size: preset.gridSize,
-      difficulty,
-    };
-
-    console.log('[Game] Generating puzzle...');
-
-    let puzzle: Puzzle;
-    try {
-      puzzle = await generatePuzzle(config);
-    } catch (error) {
-      console.error('[Game] Failed to generate puzzle:', error);
-      alert('Failed to generate puzzle. Please try again.');
-      return;
-    }
-
-    console.log('[Game] Puzzle generated:', puzzle.id, 'size:', puzzle.size, 'cages:', puzzle.cages.length);
-    this.loadPuzzle(puzzle);
-  }
-
-  /**
    * Load a puzzle into the game
    */
   loadPuzzle(puzzle: Puzzle): void {
     console.log('[Game] Loading puzzle:', puzzle.id);
     this.preparePuzzle(puzzle);
+    claimActiveGame();
     this.stateManager.startGame();
     this.timer.start();
     this.callbacks.onTimerUpdate?.(0);
@@ -186,37 +160,45 @@ export class Game {
     const snapshot = loadActiveGame();
     if (!snapshot) return false;
 
-    console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
-    this.preparePuzzle(snapshot.puzzle);
+    try {
+      console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
+      this.preparePuzzle(snapshot.puzzle);
+      claimActiveGame();
 
-    const notes = snapshot.notes.map((row) =>
-      row.map((cellNotes) => new Set(cellNotes))
-    );
+      const notes = snapshot.notes.map((row) =>
+        row.map((cellNotes) => new Set(cellNotes))
+      );
 
-    this.stateManager.restoreSession({
-      grid: snapshot.grid,
-      notes,
-      selectedCell: snapshot.selectedCell,
-      status: snapshot.status,
-      timer: snapshot.timer,
-      hintsUsed: snapshot.hintsUsed,
-      hintUsage: snapshot.hintUsage,
-      mistakeCount: snapshot.mistakeCount,
-    });
+      this.stateManager.restoreSession({
+        grid: snapshot.grid,
+        notes,
+        selectedCell: snapshot.selectedCell,
+        status: snapshot.status,
+        timer: snapshot.timer,
+        hintsUsed: snapshot.hintsUsed,
+        hintUsage: snapshot.hintUsage,
+        mistakeCount: snapshot.mistakeCount,
+      });
 
-    this.timer.setElapsed(snapshot.timer);
-    this.notesMode = snapshot.notesMode;
+      this.timer.setElapsed(snapshot.timer);
+      this.notesMode = snapshot.notesMode;
 
-    if (snapshot.status === 'playing') {
-      this.timer.start();
-    } else {
+      if (snapshot.status === 'playing') {
+        this.timer.start();
+      } else {
+        this.timer.pause();
+      }
+
+      this.updateValidationErrors();
+      this.callbacks.onTimerUpdate?.(snapshot.timer);
+      this.render();
+      return true;
+    } catch {
       this.timer.pause();
+      this.preparePuzzle(this.createPlaceholderPuzzle());
+      clearActiveGame();
+      return false;
     }
-
-    this.updateValidationErrors();
-    this.callbacks.onTimerUpdate?.(snapshot.timer);
-    this.render();
-    return true;
   }
 
   /**
@@ -372,7 +354,21 @@ export class Game {
     if (!this.hintSystem) return;
 
     const state = this.stateManager.getState();
-    const hint = this.hintSystem.getHintStep(state.grid, tier);
+    let budgetExceeded = false;
+    const hint = this.hintSystem.getHintStep(state.grid, tier, () => { budgetExceeded = true; });
+    if (!hint) {
+      this.lastHint = {
+        tier,
+        focus: { cells: [] },
+        reason: 'unavailable',
+        explanation: budgetExceeded
+          ? 'Finding a hint took too long. Fill in another cell and try again.'
+          : 'No hint is available for these entries. Check your numbers and try again.',
+        reveal: false,
+      };
+      this.emitStateChange();
+      return;
+    }
     if (hint) {
       const targetCell = hint.focus.cells[0] ?? null;
       if (targetCell) {
@@ -441,25 +437,15 @@ export class Game {
     const gridSize = state.puzzle.size;
     const identity = this.getPuzzleIdentity(state.puzzle);
 
-    // Check if this is a new best time
-    const isNewBest = statsStore.isBestTime(difficulty, time);
-    let badges: DailyBadge[] = [];
-    let dailyStreak: number | null = null;
-
-    if (identity.mode === 'daily' && identity.date) {
-      const dailyResult = await statsStore.recordDailyCompletion({
-        date: identity.date,
-        difficulty,
-        puzzleId: state.puzzle.id,
-        time,
-        hintUsage: state.hintUsage,
-        mistakes: state.mistakeCount,
+    let result: CompletionResult;
+    try {
+      result = await statsStore.recordWin({
+        mode: identity.mode, date: identity.date, difficulty, puzzleId: state.puzzle.id,
+        time, hintUsage: state.hintUsage, mistakes: state.mistakeCount,
       });
-      badges = dailyResult.completion.badges;
-      dailyStreak = dailyResult.currentDailyStreak;
+    } catch {
+      result = { recordingStatus: 'save-failed', isNewBest: false, badges: [], dailyStreak: null };
     }
-
-    await statsStore.recordCompletion(difficulty, time, hintsUsed > 0);
 
     // Notify app to show win screen
     this.callbacks.onWin?.({
@@ -469,12 +455,13 @@ export class Game {
       mistakes: state.mistakeCount,
       difficulty,
       gridSize,
-      isNewBest,
+      isNewBest: result.isNewBest,
       mode: identity.mode,
       date: identity.date,
       puzzleId: state.puzzle.id,
-      badges,
-      dailyStreak,
+      badges: result.badges,
+      dailyStreak: result.dailyStreak,
+      recordingStatus: result.recordingStatus,
     });
   }
 
@@ -738,8 +725,7 @@ export class Game {
   }
 
   private isIncorrectPlacement(cell: Cell, value: number): boolean {
-    const puzzle = this.stateManager.getState().puzzle;
-    return puzzle.solution[cell.row]?.[cell.col] !== value;
+    return this.validator ? !this.validator.isValidMove(this.stateManager.getState().grid, cell, value).valid : false;
   }
 
   /**

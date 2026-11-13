@@ -61,6 +61,7 @@ export interface PlayerStats {
   longestStreak: number;
   lastPlayedDate: string | null;
   dailyCompletions: Record<string, DailyCompletion>;
+  completedPuzzleIds: string[];
 }
 
 // User settings

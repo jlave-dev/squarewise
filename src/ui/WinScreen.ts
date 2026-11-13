@@ -1,4 +1,5 @@
 import { Modal } from './Modal';
+import type { RecordingStatus } from '../storage/StatsStore';
 import type { ShareLink } from '../app/share/ShareService';
 import type { DailyBadge, HintUsage } from '../types/game';
 import { formatBadge, formatHintResult } from '../app/share/SharePayload';
@@ -17,6 +18,7 @@ export interface WinStats {
   puzzleId?: string;
   badges?: DailyBadge[];
   dailyStreak?: number | null;
+  recordingStatus?: RecordingStatus;
 }
 
 /**
@@ -93,6 +95,18 @@ export class WinScreen {
     if (stats.dailyStreak) detailParts.push(`${stats.dailyStreak}-day streak`);
     details.textContent = detailParts.join(' · ');
     container.appendChild(details);
+
+    if (stats.recordingStatus && stats.recordingStatus !== 'counted') {
+      const note = document.createElement('p');
+      note.className = 'win-recording-note';
+      note.textContent = {
+        tutorial: 'Tutorials are not counted in statistics.',
+        reveal: 'Reveal used — not counted in statistics.',
+        repeat: 'This puzzle or daily date is already recorded.',
+        'save-failed': 'Statistics could not be saved.',
+      }[stats.recordingStatus];
+      container.appendChild(note);
+    }
 
     if (stats.isNewBest) {
       const best = document.createElement('p');
