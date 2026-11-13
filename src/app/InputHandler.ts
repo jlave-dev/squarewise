@@ -136,7 +136,7 @@ export class InputHandler {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
-    if (this.shouldIgnoreGlobalKeyDown(e)) {
+    if (e.defaultPrevented || this.shouldIgnoreGlobalKeyDown(e)) {
       return;
     }
 

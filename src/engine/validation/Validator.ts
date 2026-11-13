@@ -1,4 +1,5 @@
 import type { Puzzle, Cell, Cage } from '../../types/puzzle';
+import { validateClue } from '../generator/ClueCalculator';
 
 export interface ValidationResult {
   valid: boolean;
@@ -24,7 +25,7 @@ export class Validator {
     const cageErrors = this.findCageErrors(grid, cell, value);
 
     return {
-      valid: conflicts.length === 0 && cageErrors.length === 0,
+      valid: Number.isInteger(value) && value >= 1 && value <= this.puzzle.size && conflicts.length === 0 && cageErrors.length === 0,
       conflicts,
       cageErrors,
     };
@@ -95,52 +96,31 @@ export class Validator {
    * Validate a complete cage
    */
   validateCage(cage: Cage, grid: number[][]): boolean {
-    const values = cage.cells.map(c => grid[c.row][c.col]);
-    const { target, operation } = cage.clue;
-
-    switch (operation) {
-      case 'none':
-        return values.length === 1 && values[0] === target;
-
-      case '+':
-        return values.reduce((a, b) => a + b, 0) === target;
-
-      case '-':
-        if (values.length !== 2) return false;
-        return Math.abs(values[0] - values[1]) === target;
-
-      case '×':
-        return values.reduce((a, b) => a * b, 1) === target;
-
-      case '÷':
-        if (values.length !== 2) return false;
-        const larger = Math.max(values[0], values[1]);
-        const smaller = Math.min(values[0], values[1]);
-        return smaller !== 0 && larger / smaller === target;
-
-      default:
-        return false;
-    }
+    return validateClue(cage.clue, cage.cells.map(c => grid[c.row][c.col]));
   }
 
   /**
    * Find all errors in the current grid
    */
   findAllErrors(grid: number[][]): Cell[] {
+    const cageErrors = new Set<string>();
+    for (const cage of this.puzzle.cages) {
+      if (cage.cells.every(cell => grid[cell.row][cell.col] !== 0) && !this.validateCage(cage, grid)) {
+        for (const cell of cage.cells) cageErrors.add(`${cell.row},${cell.col}`);
+      }
+    }
     const errors: Cell[] = [];
-
     for (let row = 0; row < this.puzzle.size; row++) {
       for (let col = 0; col < this.puzzle.size; col++) {
         const value = grid[row][col];
         if (value === 0) continue;
-
-        // Check against solution
-        if (value !== this.puzzle.solution[row][col]) {
-          errors.push({ row, col });
+        const cell = { row, col };
+        if (!Number.isInteger(value) || value < 1 || value > this.puzzle.size ||
+            cageErrors.has(`${row},${col}`) || this.findConflicts(grid, cell, value).length > 0) {
+          errors.push(cell);
         }
       }
     }
-
     return errors;
   }
 
@@ -148,14 +128,9 @@ export class Validator {
    * Check if the grid is complete and correct
    */
   isComplete(grid: number[][]): boolean {
-    for (let row = 0; row < this.puzzle.size; row++) {
-      for (let col = 0; col < this.puzzle.size; col++) {
-        if (grid[row][col] !== this.puzzle.solution[row][col]) {
-          return false;
-        }
-      }
-    }
-    return true;
+    return grid.length === this.puzzle.size &&
+      grid.every(row => row.length === this.puzzle.size && row.every(value => Number.isInteger(value) && value >= 1 && value <= this.puzzle.size)) &&
+      this.findAllErrors(grid).length === 0;
   }
 
   /**

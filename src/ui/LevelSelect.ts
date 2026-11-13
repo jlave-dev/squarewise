@@ -11,6 +11,8 @@ type ArchiveSelectCallback = (date: string, difficulty: Difficulty) => void;
  */
 export class LevelSelect {
   private modal: Modal;
+  private displayedDate = formatLocalDate(new Date());
+  private showingChoices = false;
   private onDifficultySelect?: DifficultySelectCallback;
   private onDailyChallenge?: () => void;
   private onTutorial?: () => void;
@@ -18,20 +20,66 @@ export class LevelSelect {
 
   constructor() {
     this.modal = new Modal();
+    document.addEventListener('visibilitychange', () => this.refreshDate());
+    this.scheduleDateRefresh();
   }
 
   /**
    * Show the level select modal
    */
-  show(): void {
+  show(error?: string): void {
+    this.showingChoices = true;
+    this.displayedDate = formatLocalDate(new Date());
+    this.modal.setOnClose(() => {});
     this.modal.clear();
     this.modal.setTitle('Select Puzzle');
 
     const content = this.createContent();
+    if (error) {
+      const message = document.createElement('p');
+      message.setAttribute('role', 'alert');
+      message.textContent = error;
+      content.prepend(message);
+    }
     this.modal.setContent(content);
 
     if (!this.modal.isOpen()) this.modal.open();
     else this.modal.getContentElement().querySelector<HTMLElement>('button')?.focus();
+  }
+
+  private scheduleDateRefresh(): void {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    window.setTimeout(() => {
+      this.refreshDate();
+      this.scheduleDateRefresh();
+    }, midnight.getTime() - now.getTime() + 50);
+  }
+
+  private refreshDate(): void {
+    const today = formatLocalDate(new Date());
+    if (today === this.displayedDate || !this.modal.isOpen() || !this.showingChoices) return;
+    this.displayedDate = today;
+    const root = this.modal.getContentElement();
+    const controls = Array.from(root.querySelectorAll<HTMLElement>('button, summary'));
+    const focusIndex = controls.indexOf(document.activeElement as HTMLElement);
+    const archiveOpen = root.querySelector('details')?.open ?? false;
+    this.modal.setContent(this.createContent());
+    const archive = root.querySelector('details');
+    if (archive) archive.open = archiveOpen;
+    if (focusIndex >= 0) root.querySelectorAll<HTMLElement>('button, summary')[focusIndex]?.focus();
+  }
+
+  showLoading(onCancel: () => void): void {
+    this.showingChoices = false;
+    this.modal.clear().setTitle('Preparing puzzle');
+    const message = document.createElement('p');
+    message.setAttribute('role', 'status');
+    message.textContent = 'Preparing your puzzle…';
+    this.modal.setContent(message);
+    this.modal.setOnClose(onCancel);
+    this.modal.addButton('Cancel', () => this.modal.close(), 'secondary');
+    this.modal.open();
   }
 
   private createContent(): HTMLElement {
@@ -239,6 +287,7 @@ export class LevelSelect {
    * Hide the level select
    */
   hide(): void {
+    this.modal.setOnClose(() => {});
     this.modal.close();
   }
 

@@ -1,5 +1,6 @@
 import type { Puzzle, Cage, Cell } from '../../types/puzzle';
 import { createEmptyGrid } from '../generator/LatinSquare';
+import { validateClue } from '../generator/ClueCalculator';
 
 /**
  * Check if a value is valid in a cell position
@@ -50,17 +51,17 @@ function isCageSatisfied(
 
   // If there are empty cells, only check partial validity
   if (hasEmpty) {
-    return allowPartial ? isPartialCageValid(cage, values) : true;
+    return allowPartial ? isPartialCageValid(cage, values, grid.length) : true;
   }
 
   // All cells filled - check full constraint
-  return isFullCageValid(cage, values);
+  return validateClue(cage.clue, values);
 }
 
 /**
  * Check if a partially filled cage could still be valid
  */
-function isPartialCageValid(cage: Cage, values: number[]): boolean {
+function isPartialCageValid(cage: Cage, values: number[], size: number): boolean {
   const { target, operation } = cage.clue;
 
   // For partial checks, we just ensure the current values don't violate the constraint
@@ -70,7 +71,8 @@ function isPartialCageValid(cage: Cage, values: number[]): boolean {
 
     case '+':
       const sum = values.reduce((a, b) => a + b, 0);
-      return sum <= target;
+      const remaining = cage.cells.length - values.length;
+      return sum + remaining <= target && sum + remaining * size >= target;
 
     case '-':
       // Can't validate subtraction with partial data
@@ -78,7 +80,7 @@ function isPartialCageValid(cage: Cage, values: number[]): boolean {
 
     case '×':
       const product = values.reduce((a, b) => a * b, 1);
-      return product <= target;
+      return product <= target && target % product === 0;
 
     case '÷':
       // Can't validate division with partial data
@@ -86,37 +88,6 @@ function isPartialCageValid(cage: Cage, values: number[]): boolean {
 
     default:
       return true;
-  }
-}
-
-/**
- * Check if a fully filled cage satisfies its constraint
- */
-function isFullCageValid(cage: Cage, values: number[]): boolean {
-  const { target, operation } = cage.clue;
-
-  switch (operation) {
-    case 'none':
-      return values.length === 1 && values[0] === target;
-
-    case '+':
-      return values.reduce((a, b) => a + b, 0) === target;
-
-    case '-':
-      if (values.length !== 2) return false;
-      return Math.abs(values[0] - values[1]) === target;
-
-    case '×':
-      return values.reduce((a, b) => a * b, 1) === target;
-
-    case '÷':
-      if (values.length !== 2) return false;
-      const larger = Math.max(values[0], values[1]);
-      const smaller = Math.min(values[0], values[1]);
-      return smaller !== 0 && larger / smaller === target;
-
-    default:
-      return false;
   }
 }
 
@@ -136,96 +107,90 @@ function getCageForCell(cages: Cage[], row: number, col: number): Cage | null {
 
 /**
  * Solve a puzzle using backtracking
- * Returns the solution or null if no solution exists
+ * Returns a solution, or null if none was found within the search budget.
  */
-export function solvePuzzle(puzzle: Puzzle): number[][] | null {
-  const grid = createEmptyGrid(puzzle.size);
-
-  if (backtrack(puzzle, grid, 0)) {
-    return grid;
-  }
-
-  return null;
+export function solvePuzzle(
+  puzzle: Puzzle,
+  initialGrid: number[][] = createEmptyGrid(puzzle.size),
+  maxNodes = 20_000,
+  onBudgetExceeded?: () => void
+): number[][] | null {
+  const result = searchSolutions(puzzle, initialGrid, maxNodes, 50, 1);
+  if (result.exhausted) onBudgetExceeded?.();
+  return result.solution;
 }
 
-/**
- * Recursive backtracking solver
- */
-function backtrack(puzzle: Puzzle, grid: number[][], cellIndex: number): boolean {
-  const totalCells = puzzle.size * puzzle.size;
+function searchSolutions(
+  puzzle: Puzzle,
+  initialGrid: number[][] = createEmptyGrid(puzzle.size),
+  maxNodes: number,
+  maxDurationMs: number,
+  limit: number
+): { solution: number[][] | null; count: number; exhausted: boolean } {
+  const result = { solution: null as number[][] | null, count: 0, exhausted: false };
+  if (initialGrid.length !== puzzle.size || initialGrid.some(row => row.length !== puzzle.size)) return result;
+  const grid = initialGrid.map(row => [...row]);
+  const cages = Array.from({ length: puzzle.size }, (_, row) =>
+    Array.from({ length: puzzle.size }, (_, col) => getCageForCell(puzzle.cages, row, col)));
 
-  // Base case: all cells filled
-  if (cellIndex >= totalCells) {
-    return true;
-  }
-
-  const row = Math.floor(cellIndex / puzzle.size);
-  const col = cellIndex % puzzle.size;
-
-  // Try each possible value
-  for (let value = 1; value <= puzzle.size; value++) {
-    if (isValidPlacement(grid, row, col, value, puzzle.size)) {
-      grid[row][col] = value;
-
-      // Check cage constraint
-      const cage = getCageForCell(puzzle.cages, row, col);
-      if (cage && isCageSatisfied(cage, grid, true)) {
-        if (backtrack(puzzle, grid, cellIndex + 1)) {
-          return true;
-        }
-      }
-
-      grid[row][col] = 0;
+  for (let row = 0; row < puzzle.size; row++) {
+    for (let col = 0; col < puzzle.size; col++) {
+      const value = grid[row][col];
+      if (!Number.isInteger(value) || value < 0 || value > puzzle.size) return result;
+      if (value && !isValidPlacement(grid, row, col, value, puzzle.size)) return result;
     }
   }
+  if (!puzzle.cages.every(cage => isCageSatisfied(cage, grid, true))) return result;
 
-  return false;
-}
-
-/**
- * Check if a puzzle has exactly one solution
- */
-export async function hasUniqueSolution(puzzle: Puzzle): Promise<boolean> {
-  let solutionCount = 0;
-  const grid = createEmptyGrid(puzzle.size);
-
-  function countSolutions(cellIndex: number): boolean {
-    const totalCells = puzzle.size * puzzle.size;
-
-    if (cellIndex >= totalCells) {
-      solutionCount++;
-      return solutionCount >= 2; // Stop if we find more than one
+  let nodes = 0;
+  const deadline = performance.now() + maxDurationMs;
+  function visit(): boolean {
+    if (++nodes > maxNodes || performance.now() >= deadline) {
+      result.exhausted = true;
+      return true;
     }
-
-    const row = Math.floor(cellIndex / puzzle.size);
-    const col = cellIndex % puzzle.size;
-
-    for (let value = 1; value <= puzzle.size; value++) {
-      if (isValidPlacement(grid, row, col, value, puzzle.size)) {
-        grid[row][col] = value;
-
-        const cage = getCageForCell(puzzle.cages, row, col);
-        if (!cage || isCageSatisfied(cage, grid, true)) {
-          if (countSolutions(cellIndex + 1)) {
-            grid[row][col] = 0;
-            return true; // Found multiple solutions
-          }
+    let next: Cell | null = null;
+    let candidates: number[] = [];
+    // Most-constrained-first keeps compatible-completion hints bounded.
+    for (let row = 0; row < puzzle.size; row++) {
+      for (let col = 0; col < puzzle.size; col++) {
+        if (grid[row][col]) continue;
+        const values: number[] = [];
+        for (let value = 1; value <= puzzle.size; value++) {
+          if (!isValidPlacement(grid, row, col, value, puzzle.size)) continue;
+          grid[row][col] = value;
+          const cage = cages[row][col];
+          if (cage && isCageSatisfied(cage, grid, true)) values.push(value);
+          grid[row][col] = 0;
         }
-
-        grid[row][col] = 0;
+        if (values.length === 0) return false;
+        if (!next || values.length < candidates.length) {
+          next = { row, col };
+          candidates = values;
+        }
       }
     }
+    if (!next) {
+      result.count++;
+      result.solution ??= grid.map(row => [...row]);
+      return result.count >= limit;
+    }
+    for (const value of candidates) {
+      grid[next.row][next.col] = value;
+      if (visit()) return true;
+      grid[next.row][next.col] = 0;
 
+    }
     return false;
   }
+  visit();
+  return result;
+}
 
-  // Use setTimeout to avoid blocking
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      countSolutions(0);
-      resolve(solutionCount === 1);
-    }, 0);
-  });
+/** Count up to two completions; exact mode preserves the published v1 generator. */
+export async function hasUniqueSolution(puzzle: Puzzle): Promise<boolean> {
+  const result = searchSolutions(puzzle, createEmptyGrid(puzzle.size), Infinity, Infinity, 2);
+  return !result.exhausted && result.count === 1;
 }
 
 /**

@@ -65,12 +65,21 @@ test('accessible cell labels include position, value, notes, cage clue, selectio
 
   assert.equal(
     label,
-    'Row 1, column 2, empty, notes 1, 2, cage 4+, selected, conflict'
+    'Row 1, column 2, empty, notes 1, 2, cage 2, clue 4+, cells row 1 column 2; row 2 column 2, selected, conflict'
   );
 });
 
 test('accessible cell labels describe filled cells without notes', () => {
   const label = createAccessibleCellLabel(makeSnapshot(), { row: 0, col: 0 });
 
-  assert.equal(label, 'Row 1, column 1, value 1, no notes, cage 1');
+  assert.equal(label, 'Row 1, column 1, value 1, no notes, cage 1, clue 1, cells row 1 column 1');
+});
+
+test('identical clues still describe distinct cages and members', () => {
+  const snapshot = makeSnapshot();
+  snapshot.cages[2].clue = { target: 1, operation: 'none' };
+  const first = createAccessibleCellLabel(snapshot, { row: 0, col: 0 });
+  const other = createAccessibleCellLabel(snapshot, { row: 1, col: 0 });
+  assert.match(first, /cage 1, clue 1, cells row 1 column 1/);
+  assert.match(other, /cage 3, clue 1, cells row 2 column 1/);
 });

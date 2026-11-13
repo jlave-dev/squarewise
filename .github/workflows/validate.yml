@@ -1,0 +1,38 @@
+name: Validate application
+
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      upload-pages:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Test development service-worker cleanup
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+        run: npm run test:e2e -- tests/e2e/service-worker.spec.ts
+      - name: Test production preview
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 5173
+        run: npm run test:e2e
+      - uses: actions/upload-pages-artifact@v3
+        if: inputs.upload-pages
+        with:
+          path: dist
