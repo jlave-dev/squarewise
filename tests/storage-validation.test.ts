@@ -81,3 +81,27 @@ test('normalizes settings and statistics field by field', () => {
   expect(stats.totalTime).toBe(0);
   expect(Object.values(stats.dailyCompletions)).toEqual([completion]);
 });
+
+test('tabs retain their own active save without overwriting or clearing another owner', async () => {
+  const { claimActiveGame, clearActiveGame } = await import('../src/storage/ActiveGameStore');
+  const entries = storage();
+  const tab = new Map<string, string>();
+  vi.stubGlobal('sessionStorage', {
+    getItem: (key: string) => tab.get(key) ?? null,
+    setItem: (key: string, value: string) => tab.set(key, value),
+    removeItem: (key: string) => tab.delete(key),
+  });
+  const own = snapshot();
+  claimActiveGame();
+  saveActiveGame(own);
+  const other = { ...snapshot(), puzzle: { ...own.puzzle, id: 'other-tab' } };
+  entries.set(key, JSON.stringify(other));
+  entries.set('squarewise.activeGame.owner', 'another-owner');
+  own.timer = 99;
+  saveActiveGame(own);
+  expect(loadActiveGame()?.timer).toBe(99);
+  expect(JSON.parse(entries.get(key)!).puzzle.id).toBe('other-tab');
+  clearActiveGame();
+  expect(tab.has(key)).toBe(false);
+  expect(JSON.parse(entries.get(key)!).puzzle.id).toBe('other-tab');
+});

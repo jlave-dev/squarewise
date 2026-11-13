@@ -4,6 +4,10 @@ import { validatePuzzle } from '../engine/generator/PuzzleGenerator';
 import { getDifficulties } from '../engine/difficulty/presets';
 
 const ACTIVE_GAME_KEY = 'squarewise.activeGame.v1';
+const OWNER_KEY = 'squarewise.activeGame.owner';
+const ownerId = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte =>
+  byte.toString(16).padStart(2, '0')
+).join('');
 
 type PersistableStatus = Extract<GameStatus, 'playing' | 'paused'>;
 
@@ -122,36 +126,61 @@ function isActiveGameSnapshot(value: unknown): value is ActiveGameSnapshot {
   );
 }
 
+/** Claim the shared restart backup only on an explicit load/start, never on a timer tick. */
+export function claimActiveGame(): void {
+  try { localStorage.setItem(OWNER_KEY, ownerId); } catch { /* Storage may be unavailable. */ }
+}
+
 export function saveActiveGame(snapshot: ActiveGameSnapshot): void {
+  const serialized = JSON.stringify(snapshot);
+  // Each tab keeps its own refresh-safe progress, even after another tab takes ownership.
+  try { sessionStorage.setItem(ACTIVE_GAME_KEY, serialized); } catch { /* Keep the shared fallback when available. */ }
   try {
-    localStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify(snapshot));
+    if (!localStorage.getItem(OWNER_KEY)) claimActiveGame();
+    if (localStorage.getItem(OWNER_KEY) === ownerId) localStorage.setItem(ACTIVE_GAME_KEY, serialized);
   } catch (error) {
     console.error('Failed to save active game:', error);
   }
 }
 
-export function loadActiveGame(): ActiveGameSnapshot | null {
+function discardInvalidSnapshot(raw: string | null): void {
+  try { sessionStorage.removeItem(ACTIVE_GAME_KEY); } catch { /* Optional tab backup. */ }
   try {
-    const raw = localStorage.getItem(ACTIVE_GAME_KEY);
-    if (!raw) return null;
+    if (localStorage.getItem(ACTIVE_GAME_KEY) === raw) {
+      localStorage.removeItem(ACTIVE_GAME_KEY);
+      localStorage.removeItem(OWNER_KEY);
+    }
+  } catch { /* A blocked store must not prevent startup. */ }
+}
 
+export function loadActiveGame(): ActiveGameSnapshot | null {
+  let raw: string | null = null;
+  try { raw = sessionStorage.getItem(ACTIVE_GAME_KEY); } catch { /* Fall back to the last owned game. */ }
+  try {
+    raw ??= localStorage.getItem(ACTIVE_GAME_KEY);
+    if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isActiveGameSnapshot(parsed)) {
-      clearActiveGame();
+      discardInvalidSnapshot(raw);
       return null;
     }
     parsed.hintUsage ??= createEmptyHintUsage();
     parsed.mistakeCount ??= 0;
     return parsed;
   } catch {
-    clearActiveGame();
+    discardInvalidSnapshot(raw);
     return null;
   }
 }
 
 export function clearActiveGame(): void {
+  try { sessionStorage.removeItem(ACTIVE_GAME_KEY); } catch { /* Optional tab backup. */ }
   try {
-    localStorage.removeItem(ACTIVE_GAME_KEY);
+    const owner = localStorage.getItem(OWNER_KEY);
+    if (!owner || owner === ownerId) {
+      localStorage.removeItem(ACTIVE_GAME_KEY);
+      localStorage.removeItem(OWNER_KEY);
+    }
   } catch (error) {
     console.error('Failed to clear active game:', error);
   }

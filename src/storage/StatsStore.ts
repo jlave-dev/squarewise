@@ -1,4 +1,4 @@
-import { getStat, setStat } from './IndexedDB';
+import { getStat, updateStat } from './IndexedDB';
 import { formatLocalDate } from '../core/DailyChallenge';
 import type { DailyBadge, DailyCompletion, HintUsage, PlayerStats } from '../types/game';
 import type { Difficulty } from '../types/puzzle';
@@ -24,6 +24,7 @@ const createDefaultStats = (): PlayerStats => ({
   longestStreak: 0,
   lastPlayedDate: null,
   dailyCompletions: {},
+  completedPuzzleIds: [],
 });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -48,6 +49,7 @@ export function normalizeStats(value: unknown): PlayerStats {
   if (isCount(value.currentStreak)) result.currentStreak = value.currentStreak;
   if (isCount(value.longestStreak)) result.longestStreak = value.longestStreak;
   if (isDate(value.lastPlayedDate)) result.lastPlayedDate = value.lastPlayedDate;
+  if (Array.isArray(value.completedPuzzleIds)) result.completedPuzzleIds = [...new Set(value.completedPuzzleIds.filter((id): id is string => typeof id === 'string' && id.length > 0))];
   if (isRecord(value.dailyCompletions)) {
     for (const entry of Object.values(value.dailyCompletions)) {
       if (!isRecord(entry) || !isDate(entry.date) || !getDifficulties().includes(entry.difficulty as Difficulty) ||
@@ -87,11 +89,66 @@ export interface CalendarDaySummary {
   completions: DailyCompletion[];
 }
 
-export interface DailyCompletionResult {
-  completion: DailyCompletion;
-  created: boolean;
-  currentDailyStreak: number;
-  longestDailyStreak: number;
+export interface CompletionInput {
+  mode: 'fresh' | 'daily' | 'archive' | 'tutorial';
+  date: string | null;
+  difficulty: Difficulty;
+  puzzleId: string;
+  time: number;
+  hintUsage: HintUsage;
+  mistakes: number;
+  completedAt?: string;
+}
+
+export type RecordingStatus = 'counted' | 'tutorial' | 'reveal' | 'repeat' | 'save-failed';
+export interface CompletionResult {
+  recordingStatus: RecordingStatus;
+  isNewBest: boolean;
+  badges: DailyBadge[];
+  dailyStreak: number | null;
+}
+
+function previousDate(date: Date): string {
+  const yesterday = new Date(date);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return formatLocalDate(yesterday);
+}
+
+export function getCurrentStreak(stats: PlayerStats, now = new Date()): number {
+  return stats.lastPlayedDate === formatLocalDate(now) || stats.lastPlayedDate === previousDate(now) ? stats.currentStreak : 0;
+}
+
+/** Apply the same eligibility and deduplication policy to all completion counters. */
+export function applyCompletion(stats: PlayerStats, input: CompletionInput): CompletionResult {
+  const now = new Date(input.completedAt ?? new Date().toISOString());
+  const today = formatLocalDate(now);
+  const dated = (input.mode === 'daily' || input.mode === 'archive') && input.date !== null;
+  const repeatedDate = dated && Object.values(stats.dailyCompletions).some(completion => completion.date === input.date);
+  const recordingStatus: RecordingStatus = input.mode === 'tutorial' ? 'tutorial' :
+    input.hintUsage.tier4 > 0 ? 'reveal' :
+    stats.completedPuzzleIds.includes(input.puzzleId) || repeatedDate ? 'repeat' : 'counted';
+  const result: CompletionResult = { recordingStatus, isNewBest: false, badges: [], dailyStreak: null };
+  if (recordingStatus !== 'counted') return result;
+
+  const previousBestTime = stats.bestTimes[input.difficulty];
+  result.isNewBest = previousBestTime === null || input.time < previousBestTime;
+  if (result.isNewBest) stats.bestTimes[input.difficulty] = input.time;
+  stats.puzzlesCompleted[input.difficulty]++;
+  stats.totalTime += input.time;
+  stats.completedPuzzleIds.push(input.puzzleId);
+  if (stats.lastPlayedDate !== today) {
+    stats.currentStreak = stats.lastPlayedDate === previousDate(now) ? stats.currentStreak + 1 : 1;
+    stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
+    stats.lastPlayedDate = today;
+  }
+  if (dated) {
+    const completion = createDailyCompletion({ ...input, date: input.date!, completedAt: now.toISOString(), previousBestTime });
+    stats.dailyCompletions[getDailyCompletionKey(input.date!, input.difficulty)] = completion;
+    result.badges = completion.badges;
+    result.dailyStreak = calculateDailyStreak(stats.dailyCompletions, today) ||
+      calculateDailyStreak(stats.dailyCompletions, previousDate(now));
+  }
+  return result;
 }
 
 export function getDailyCompletionKey(date: string, difficulty: Difficulty): string {
@@ -201,116 +258,23 @@ class StatsStore {
     }
   }
 
-  /**
-   * Save stats to IndexedDB
-   */
-  async save(): Promise<void> {
-    try {
-      await setStat(STATS_KEY, this.stats);
-    } catch (error) {
-      console.error('Failed to save stats:', error);
-    }
-  }
-
-  /**
-   * Get current stats
-   */
   getStats(): Readonly<PlayerStats> {
-    return this.stats;
+    return { ...this.stats, currentStreak: getCurrentStreak(this.stats) };
   }
 
-  /**
-   * Record a completed puzzle
-   */
-  async recordCompletion(difficulty: Difficulty, time: number, _usedHints: boolean): Promise<void> {
-    // Increment completion count
-    this.stats.puzzlesCompleted[difficulty]++;
-
-    // Update best time if better
-    const currentBest = this.stats.bestTimes[difficulty];
-    if (currentBest === null || time < currentBest) {
-      this.stats.bestTimes[difficulty] = time;
-    }
-
-    // Add to total time
-    this.stats.totalTime += time;
-
-    // Update streak
-    const today = new Date().toISOString().split('T')[0];
-    if (this.stats.lastPlayedDate !== today) {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      if (this.stats.lastPlayedDate === yesterday) {
-        this.stats.currentStreak++;
-      } else {
-        this.stats.currentStreak = 1;
-      }
-      this.stats.longestStreak = Math.max(this.stats.longestStreak, this.stats.currentStreak);
-      this.stats.lastPlayedDate = today;
-    }
-
-    await this.save();
-    this.notifyListeners();
-  }
-
-  async recordDailyCompletion(input: {
-    date: string;
-    difficulty: Difficulty;
-    puzzleId: string;
-    time: number;
-    hintUsage: HintUsage;
-    mistakes: number;
-    completedAt?: string;
-  }): Promise<DailyCompletionResult> {
-    const key = getDailyCompletionKey(input.date, input.difficulty);
-    const existing = this.stats.dailyCompletions[key];
-
-    if (existing) {
-      const currentDailyStreak = calculateDailyStreak(this.stats.dailyCompletions, input.date);
-      const longestDailyStreak = this.calculateLongestDailyStreak();
-      return {
-        completion: existing,
-        created: false,
-        currentDailyStreak,
-        longestDailyStreak,
-      };
-    }
-
-    const previousBestTime = this.getBestTime(input.difficulty);
-    const completion = createDailyCompletion({
-      ...input,
-      completedAt: input.completedAt ?? new Date().toISOString(),
-      previousBestTime,
+  async recordWin(input: CompletionInput): Promise<CompletionResult> {
+    let result: CompletionResult;
+    this.stats = await updateStat(STATS_KEY, current => {
+      const latest = normalizeStats(current);
+      result = applyCompletion(latest, input);
+      return latest;
     });
-
-    this.stats.dailyCompletions[key] = completion;
-    await this.save();
     this.notifyListeners();
-
-    const currentDailyStreak = calculateDailyStreak(this.stats.dailyCompletions, input.date);
-    const longestDailyStreak = this.calculateLongestDailyStreak();
-    return {
-      completion,
-      created: true,
-      currentDailyStreak,
-      longestDailyStreak,
-    };
+    return result!;
   }
 
-  /**
-   * Increment play time
-   */
-  async addPlayTime(seconds: number): Promise<void> {
-    this.stats.totalTime += seconds;
-    await this.save();
-    this.notifyListeners();
-  }
-
-  /**
-   * Reset all stats
-   */
   async reset(): Promise<void> {
-    this.stats = createDefaultStats();
-    await this.save();
+    this.stats = await updateStat(STATS_KEY, () => createDefaultStats());
     this.notifyListeners();
   }
 
@@ -345,7 +309,7 @@ class StatsStore {
   }
 
   getStreak(): number {
-    return this.stats.currentStreak;
+    return getCurrentStreak(this.stats);
   }
 
   getDailyCompletion(date: string, difficulty: Difficulty): DailyCompletion | null {
@@ -356,23 +320,7 @@ class StatsStore {
     return getCalendarMonthData(this.stats.dailyCompletions, year, month);
   }
 
-  isBestTime(difficulty: Difficulty, time: number): boolean {
-    const currentBest = this.stats.bestTimes[difficulty];
-    return currentBest === null || time < currentBest;
-  }
 
-  private calculateLongestDailyStreak(): number {
-    const dates = Array.from(new Set(
-      Object.values(this.stats.dailyCompletions).map((completion) => completion.date)
-    )).sort();
-    if (dates.length === 0) return 0;
-
-    let longest = 0;
-    for (const date of dates) {
-      longest = Math.max(longest, calculateDailyStreak(this.stats.dailyCompletions, date));
-    }
-    return longest;
-  }
 }
 
 // Singleton instance

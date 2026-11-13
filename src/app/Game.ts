@@ -12,7 +12,7 @@ import { StateManager } from './StateManager';
 import { Timer } from '../core/Timer';
 import { UndoStack } from '../core/UndoStack';
 import { Validator } from '../engine/validation/Validator';
-import { statsStore } from '../storage/StatsStore';
+import { statsStore, type CompletionResult, type RecordingStatus } from '../storage/StatsStore';
 import { HintSystem, type HintStep } from '../core/HintSystem';
 import {
   buildBoardRenderState,
@@ -20,6 +20,7 @@ import {
 } from '../renderer/boardRenderState';
 import {
   clearActiveGame,
+  claimActiveGame,
   loadActiveGame,
   saveActiveGame,
 } from '../storage/ActiveGameStore';
@@ -38,6 +39,7 @@ export interface GameCallbacks {
     puzzleId: string;
     badges: DailyBadge[];
     dailyStreak: number | null;
+    recordingStatus: RecordingStatus;
   }) => void;
   onTimerUpdate?: (elapsed: number) => void;
   onStateChange?: (snapshot: GameSnapshot) => void;
@@ -141,6 +143,7 @@ export class Game {
   loadPuzzle(puzzle: Puzzle): void {
     console.log('[Game] Loading puzzle:', puzzle.id);
     this.preparePuzzle(puzzle);
+    claimActiveGame();
     this.stateManager.startGame();
     this.timer.start();
     this.callbacks.onTimerUpdate?.(0);
@@ -160,6 +163,7 @@ export class Game {
     try {
       console.log('[Game] Resuming active puzzle:', snapshot.puzzle.id);
       this.preparePuzzle(snapshot.puzzle);
+      claimActiveGame();
 
       const notes = snapshot.notes.map((row) =>
         row.map((cellNotes) => new Set(cellNotes))
@@ -435,25 +439,15 @@ export class Game {
     const gridSize = state.puzzle.size;
     const identity = this.getPuzzleIdentity(state.puzzle);
 
-    // Check if this is a new best time
-    const isNewBest = statsStore.isBestTime(difficulty, time);
-    let badges: DailyBadge[] = [];
-    let dailyStreak: number | null = null;
-
-    if (identity.mode === 'daily' && identity.date) {
-      const dailyResult = await statsStore.recordDailyCompletion({
-        date: identity.date,
-        difficulty,
-        puzzleId: state.puzzle.id,
-        time,
-        hintUsage: state.hintUsage,
-        mistakes: state.mistakeCount,
+    let result: CompletionResult;
+    try {
+      result = await statsStore.recordWin({
+        mode: identity.mode, date: identity.date, difficulty, puzzleId: state.puzzle.id,
+        time, hintUsage: state.hintUsage, mistakes: state.mistakeCount,
       });
-      badges = dailyResult.completion.badges;
-      dailyStreak = dailyResult.currentDailyStreak;
+    } catch {
+      result = { recordingStatus: 'save-failed', isNewBest: false, badges: [], dailyStreak: null };
     }
-
-    await statsStore.recordCompletion(difficulty, time, hintsUsed > 0);
 
     // Notify app to show win screen
     this.callbacks.onWin?.({
@@ -463,12 +457,13 @@ export class Game {
       mistakes: state.mistakeCount,
       difficulty,
       gridSize,
-      isNewBest,
+      isNewBest: result.isNewBest,
       mode: identity.mode,
       date: identity.date,
       puzzleId: state.puzzle.id,
-      badges,
-      dailyStreak,
+      badges: result.badges,
+      dailyStreak: result.dailyStreak,
+      recordingStatus: result.recordingStatus,
     });
   }
 
