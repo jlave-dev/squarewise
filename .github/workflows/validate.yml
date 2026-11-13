@@ -24,6 +24,10 @@ jobs:
       - run: npm run check
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+      - name: Test development service-worker cleanup
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+        run: npm run test:e2e -- tests/e2e/service-worker.spec.ts
       - name: Test production preview
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: npm run preview -- --host 127.0.0.1 --port 5173

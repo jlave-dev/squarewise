@@ -686,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     if (import.meta.env.PROD) {
-      navigator.serviceWorker.register('/squarewise/sw.js')
+      navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js')
         .then((registration) => {
           console.log('SW registered:', registration.scope);
         })
@@ -696,12 +696,13 @@ if ('serviceWorker' in navigator) {
       return;
     }
 
-    // In development, remove any existing worker/cache to avoid stale source modules.
+    // Remove only SquareWise resources; other apps share this origin.
+    const appScope = new URL(import.meta.env.BASE_URL, window.location.origin).href;
     navigator.serviceWorker.getRegistrations()
-      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+      .then((registrations) => Promise.all(registrations.filter((registration) => registration.scope === appScope).map((registration) => registration.unregister())))
       .then(() => {
         if (!('caches' in window)) return Promise.resolve([]);
-        return caches.keys().then((cacheNames) => Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName))));
+        return caches.keys().then((cacheNames) => Promise.all(cacheNames.filter((cacheName) => cacheName.startsWith('squarewise-')).map((cacheName) => caches.delete(cacheName))));
       })
       .then(() => {
         console.log('Service worker and caches cleared for development mode');
