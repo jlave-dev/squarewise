@@ -16,7 +16,7 @@ import { settingsStore } from './storage/SettingsStore';
 import { statsStore } from './storage/StatsStore';
 import { dailyChallenge, formatLocalDate } from './core/DailyChallenge';
 import { generatePuzzleInWorker, type PuzzleRequest } from './engine/generator/PuzzleWorker';
-import { buildWinSharePayload } from './app/share/SharePayload';
+import { buildWinSharePayload, getCanonicalAppUrl } from './app/share/SharePayload';
 import { ShareService } from './app/share/ShareService';
 import { generatePuzzle } from './engine/generator/PuzzleGenerator';
 import { getDifficultyPreset } from './engine/difficulty/presets';
@@ -292,7 +292,7 @@ class SquareWiseApp {
   }
 
   private async handleShare(stats: WinStats): Promise<void> {
-    const payload = buildWinSharePayload(stats, window.location.origin);
+    const payload = buildWinSharePayload(stats, getCanonicalAppUrl(window.location.href, import.meta.env.BASE_URL));
     const result = await this.shareService.share(payload);
 
     if (result.kind === 'shared') {
@@ -541,7 +541,7 @@ class SquareWiseApp {
       this.winScreen.show(stats);
 
       if (scenario === 'won-share-fallback') {
-        const payload = buildWinSharePayload(stats, window.location.origin);
+        const payload = buildWinSharePayload(stats, getCanonicalAppUrl(window.location.href, import.meta.env.BASE_URL));
         const fallback = this.shareService.getFallback(payload);
         this.winScreen.showShareFallback(fallback.links, fallback.copyText);
       }
