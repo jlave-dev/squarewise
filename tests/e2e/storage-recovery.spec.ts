@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 test('a malformed active cage recovers without deleting settings or unrelated data', async ({ page }) => {
   await page.goto('?scenario=in-progress&difficulty=easy');
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
+  // Let the live game's pagehide checkpoint finish before seeding a corrupt save.
+  await page.goto('./manifest.json');
   await page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('squarewise.activeGame.v1')!);
     saved.puzzle.cages = [null];
@@ -27,6 +29,7 @@ test('a malformed active cage recovers without deleting settings or unrelated da
 test('valid older active games resume with migrated counters', async ({ page }) => {
   await page.goto('?scenario=in-progress&difficulty=easy');
   await expect(page.locator('#sw-state-probe')).toHaveAttribute('data-status', 'playing');
+  await page.goto('./manifest.json');
   await page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('squarewise.activeGame.v1')!);
     delete saved.hintUsage;

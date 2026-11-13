@@ -109,6 +109,7 @@ export class Game {
     const placeholderPuzzle = this.createPlaceholderPuzzle();
     this.stateManager = new StateManager(placeholderPuzzle);
     this.stateUnsubscribe = this.stateManager.subscribe(() => {
+      this.inputHandler?.setSelectedCell(this.stateManager.getState().selectedCell);
       this.persistActiveState();
       this.emitStateChange();
     });
@@ -125,6 +126,8 @@ export class Game {
     });
 
     this.setupResizeHandler();
+    window.addEventListener('pagehide', this.flushSession);
+    document.addEventListener('visibilitychange', this.flushSession);
   }
 
   private createPlaceholderPuzzle(): Puzzle {
@@ -218,9 +221,16 @@ export class Game {
   /**
    * Handle timer tick
    */
+  private flushSession = (): void => {
+    this.stateManager.updateTimer(this.timer.getElapsedSeconds());
+    this.persistActiveState();
+  };
+
   private onTimerTick(elapsed: number): void {
+    if (elapsed === this.stateManager.getState().timer) return;
     this.stateManager.updateTimer(elapsed);
     this.callbacks.onTimerUpdate?.(elapsed);
+    if (elapsed % 15 === 0) this.persistActiveState();
   }
 
   /**
@@ -806,6 +816,9 @@ export class Game {
    * Clean up resources
    */
   destroy(): void {
+    this.flushSession();
+    window.removeEventListener('pagehide', this.flushSession);
+    document.removeEventListener('visibilitychange', this.flushSession);
     this.stateUnsubscribe?.();
     this.persistActiveState();
     this.timer.destroy();

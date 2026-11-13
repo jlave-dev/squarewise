@@ -42,28 +42,38 @@ export class AccessibleBoard {
   }
 
   update(snapshot: GameSnapshot): void {
-    const activeElement = document.activeElement;
-    const hadBoardFocus = activeElement instanceof HTMLElement && this.root.contains(activeElement);
-
+    const focused = document.activeElement as HTMLElement | null;
+    const focusedCell = focused?.matches('.accessible-board-cell')
+      ? { row: Number(focused.dataset.row), col: Number(focused.dataset.col) } : null;
     this.grid.setAttribute('aria-rowcount', String(snapshot.gridSize));
     this.grid.setAttribute('aria-colcount', String(snapshot.gridSize));
-    this.grid.innerHTML = '';
-
-    for (let row = 0; row < snapshot.gridSize; row++) {
-      const rowEl = document.createElement('div');
-      rowEl.setAttribute('role', 'row');
-
-      for (let col = 0; col < snapshot.gridSize; col++) {
-        rowEl.appendChild(this.createCellButton(snapshot, { row, col }));
+    if (this.grid.childElementCount !== snapshot.gridSize) {
+      this.grid.replaceChildren();
+      for (let row = 0; row < snapshot.gridSize; row++) {
+        const rowEl = document.createElement('div');
+        rowEl.setAttribute('role', 'row');
+        for (let col = 0; col < snapshot.gridSize; col++) {
+          rowEl.appendChild(this.createCellButton(snapshot, { row, col }));
+        }
+        this.grid.appendChild(rowEl);
       }
-
-      this.grid.appendChild(rowEl);
+    }
+    for (let row = 0; row < snapshot.gridSize; row++) {
+      for (let col = 0; col < snapshot.gridSize; col++) {
+        const cell = { row, col };
+        const button = this.getCellButton(cell)!;
+        const selected = isSameCell(snapshot.selectedCell, cell);
+        const label = createAccessibleCellLabel(snapshot, cell);
+        if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label);
+        if (button.getAttribute('aria-selected') !== String(selected)) button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected || (!snapshot.selectedCell && row === 0 && col === 0) ? 0 : -1;
+      }
     }
 
     this.updateLiveRegions(snapshot);
     this.previousSnapshot = snapshot;
 
-    const focusTarget = this.pendingFocus ?? (hadBoardFocus ? snapshot.selectedCell : null);
+    const focusTarget = this.pendingFocus ?? (focusedCell ? snapshot.selectedCell ?? focusedCell : null);
     this.pendingFocus = null;
     if (focusTarget) {
       this.getCellButton(focusTarget)?.focus();
@@ -90,7 +100,10 @@ export class AccessibleBoard {
     button.setAttribute('aria-selected', String(selected));
     button.tabIndex = selected || (!snapshot.selectedCell && cell.row === 0 && cell.col === 0) ? 0 : -1;
     button.addEventListener('click', () => this.selectCell(cell));
-    button.addEventListener('keydown', (event) => this.handleCellKeyDown(event, snapshot, cell));
+    button.addEventListener('focus', () => {
+      if (!isSameCell(this.previousSnapshot?.selectedCell ?? null, cell)) this.selectCell(cell);
+    });
+    button.addEventListener('keydown', (event) => this.handleCellKeyDown(event, this.previousSnapshot ?? snapshot, cell));
     return button;
   }
 
@@ -161,7 +174,7 @@ export function createAccessibleCellLabel(snapshot: GameSnapshot, cell: Cell): s
     `Row ${cell.row + 1}, column ${cell.col + 1}`,
     value > 0 ? `value ${value}` : 'empty',
     notes.length > 0 ? `notes ${notes.join(', ')}` : 'no notes',
-    cage ? `cage ${formatClue(cage.clue)}` : 'no cage clue',
+    cage ? `cage ${snapshot.cages.indexOf(cage) + 1}, clue ${formatClue(cage.clue)}, cells ${cage.cells.map(member => `row ${member.row + 1} column ${member.col + 1}`).join('; ')}` : 'no cage clue',
   ];
 
   if (isSameCell(snapshot.selectedCell, cell)) {

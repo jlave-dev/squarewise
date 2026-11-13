@@ -237,7 +237,7 @@ export class StateManager {
    */
   updateTimer(seconds: number): void {
     if (this.state.timer === seconds) return;
-    this.updateState({ timer: seconds }, 'timer:update');
+    this.state = { ...this.state, timer: seconds };
   }
 
   /**
