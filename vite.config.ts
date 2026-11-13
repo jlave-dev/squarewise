@@ -7,8 +7,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    target: 'ES2022',
-    rollupOptions: {
+    target: 'es2022',
+    rolldownOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

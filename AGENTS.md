@@ -90,4 +90,4 @@ State generally flows from input handlers to `Game`, through `StateManager`, the
 - Use conventional commit messages and conventional PR titles.
 - PR titles are checked on pull request events by [`.github/workflows/commit-policy.yml`](.github/workflows/commit-policy.yml). Pushed commit messages are checked on pushes to `main`; keep branch commits conventional so release behavior is predictable.
 - GitHub Pages deploys from `main` through [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
-- semantic-release creates GitHub releases from `main`; npm publishing is disabled in [`release.config.cjs`](release.config.cjs).
+- semantic-release creates GitHub releases from `main`; npm publishing is disabled by omitting the npm plugin from [`release.config.cjs`](release.config.cjs).
